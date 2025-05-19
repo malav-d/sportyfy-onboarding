@@ -62,7 +62,7 @@ export function SocialProof() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="text-white/70 text-center max-w-2xl mx-auto mb-12"
         >
-          These athletes turned their skills into viral sensations with SportSkill challenges
+          These athletes turned their skills into viral sensations with Sportyfy challenges
         </motion.p>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

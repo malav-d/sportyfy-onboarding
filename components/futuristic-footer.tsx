@@ -102,7 +102,7 @@ export function FuturisticFooter() {
         </div>
 
         <div className="border-t border-white/10 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-white/40 text-sm mb-4 md:mb-0">© 2025 SportSkill. All rights reserved.</p>
+          <p className="text-white/40 text-sm mb-4 md:mb-0">© 2025 Sportyfy. All rights reserved.</p>
 
           <div className="flex space-x-6">
             <Link href="#" className="text-white/60 hover:text-[#ff073a] transition-colors">

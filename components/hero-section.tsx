@@ -60,7 +60,7 @@ export function HeroSection({ athleteCount }: HeroSectionProps) {
           {/* Mobile App Preview */}
           <div className="mt-12 relative max-w-xs mx-auto">
             <div className="relative z-10 border-8 border-[#252525] rounded-3xl overflow-hidden shadow-2xl">
-              <img src="/placeholder.svg?height=600&width=300" alt="SportSkill mobile interface" className="w-full" />
+              <img src="/placeholder.svg?height=600&width=300" alt="Sportyfy mobile interface" className="w-full" />
               <div className="absolute top-4 left-4 flex items-center">
                 <div className="h-2 w-2 bg-[#f23c21] rounded-full animate-pulse"></div>
                 <span className="ml-2 text-xs font-medium">LIVE</span>

@@ -64,7 +64,7 @@ export function FinalCTASection() {
               </div>
               <h3 className="text-2xl font-bold mb-2 text-white">You're In!</h3>
               <p className="text-white/80">
-                Thank you for joining the SportSkill revolution. We'll be in touch soon with your exclusive early
+                Thank you for joining the Sportyfy revolution. We'll be in touch soon with your exclusive early
                 access.
               </p>
             </div>

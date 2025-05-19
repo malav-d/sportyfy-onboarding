@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button"
 
 type GamifiedNavbarProps = {
   theme: any
+  isWaitlistMode?: boolean
 }
 
-export function GamifiedNavbar({ theme }: GamifiedNavbarProps) {
+export function GamifiedNavbar({ theme, isWaitlistMode = false }: GamifiedNavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -62,14 +63,23 @@ export function GamifiedNavbar({ theme }: GamifiedNavbarProps) {
 
           {/* Action Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <button className="text-white/80 hover:text-white transition-colors">
-              <Bell className="h-5 w-5" />
-            </button>
-            <button className="text-white/80 hover:text-white transition-colors">
-              <Search className="h-5 w-5" />
-            </button>
-            <Button className="bg-primary text-white hover:opacity-90 transition-opacity" size="sm">
-              Sign Up
+            {!isWaitlistMode && (
+              <>
+                <button className="text-white/80 hover:text-white transition-colors">
+                  <Bell className="h-5 w-5" />
+                </button>
+                <button className="text-white/80 hover:text-white transition-colors">
+                  <Search className="h-5 w-5" />
+                </button>
+              </>
+            )}
+            <Button className="bg-primary text-white hover:opacity-90 transition-opacity" size="sm"
+              onClick={() => {
+                const el = document.getElementById("waitlist-questionnaire")
+                if (el) el.scrollIntoView({ behavior: "smooth" })
+              }}
+            >
+              {isWaitlistMode ? "Join Waitlist" : "Sign Up"}
             </Button>
           </div>
 
@@ -121,16 +131,18 @@ export function GamifiedNavbar({ theme }: GamifiedNavbarProps) {
                 </a>
                 <div className="pt-2 flex items-center justify-between">
                   <Button className="bg-primary text-white hover:opacity-90 transition-opacity" size="sm">
-                    Sign Up
+                    {isWaitlistMode ? "Join Waitlist" : "Sign Up"}
                   </Button>
-                  <div className="flex space-x-4">
-                    <button className="text-white/80 hover:text-white transition-colors">
-                      <Bell className="h-5 w-5" />
-                    </button>
-                    <button className="text-white/80 hover:text-white transition-colors">
-                      <Search className="h-5 w-5" />
-                    </button>
-                  </div>
+                  {!isWaitlistMode && (
+                    <div className="flex space-x-4">
+                      <button className="text-white/80 hover:text-white transition-colors">
+                        <Bell className="h-5 w-5" />
+                      </button>
+                      <button className="text-white/80 hover:text-white transition-colors">
+                        <Search className="h-5 w-5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </nav>
             </div>

@@ -11,7 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "SportSkill - Master Skills. Get Noticed.",
+  title: "Sportyfy - Master Skills. Get Noticed.",
   description: "India's First AI-Powered Sports Skill Development Platform",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 }

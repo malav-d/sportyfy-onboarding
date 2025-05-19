@@ -12,7 +12,7 @@ export function AchievementPopup({ type, theme }: AchievementPopupProps) {
   const achievements = {
     explorer: {
       title: "Explorer",
-      description: "You've discovered the SportSkill universe!",
+      description: "You've discovered the Sportyfy universe!",
       icon: <Zap className="h-6 w-6 text-secondary" />,
       xp: 50,
       color: theme.colors.secondary,

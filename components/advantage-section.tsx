@@ -51,7 +51,7 @@ export function AdvantageSection() {
             <div className="w-12 h-12 bg-[#f23c21]/20 rounded-full flex items-center justify-center mb-4">
               <TrendingUp className="h-6 w-6 text-[#f23c21]" />
             </div>
-            <h3 className="font-['Bebas_Neue'] text-2xl mb-3 tracking-wide">SPORTSKILL METHOD</h3>
+            <h3 className="font-['Bebas_Neue'] text-2xl mb-3 tracking-wide">SPORTYFY METHOD</h3>
             <ul className="space-y-3 text-gray-300">
               <li className="flex items-start">
                 <CheckCircle className="h-5 w-5 text-[#f23c21] mr-2 shrink-0 mt-0.5" />

@@ -21,7 +21,7 @@ export function WelcomeScreen() {
             <div className="mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm">
               <Zap className="h-8 w-8 text-white" />
             </div>
-            <h1 className="font-poppins text-3xl font-bold tracking-tight">SportSkill</h1>
+            <h1 className="font-poppins text-3xl font-bold tracking-tight">Sportyfy</h1>
             <p className="text-lg font-medium text-white/90">Transform Your Game</p>
           </div>
           <div className="absolute -bottom-6 left-0 right-0 h-12 bg-gradient-to-t from-white to-transparent"></div>
@@ -69,7 +69,7 @@ export function WelcomeScreen() {
           </div>
 
           <p className="text-center text-xs text-gray-500">
-            <span className="cursor-pointer text-[#5c3bfe] hover:underline">Learn more</span> about SportSkill
+            <span className="cursor-pointer text-[#5c3bfe] hover:underline">Learn more</span> about Sportyfy
           </p>
         </div>
       </CardContent>

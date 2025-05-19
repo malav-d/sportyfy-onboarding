@@ -82,7 +82,7 @@ export function CommunityHighlights() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="text-white/70 text-center max-w-2xl mx-auto mb-12"
         >
-          Check out what's happening in the SportSkill community
+          Check out what's happening in the Sportyfy community
         </motion.p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

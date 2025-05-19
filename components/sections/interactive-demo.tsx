@@ -173,7 +173,7 @@ export function InteractiveDemo() {
 
               <p className="text-white/80 mb-8">
                 Our AI-powered platform analyzes your form, tracks your progress, and helps you improve faster than
-                traditional training methods. Swipe through the demo to see how SportSkill transforms your training
+                traditional training methods. Swipe through the demo to see how Sportyfy transforms your training
                 experience.
               </p>
 

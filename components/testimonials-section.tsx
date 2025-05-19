@@ -23,7 +23,7 @@ export function TestimonialsSection() {
       before: "63%",
       after: "84%",
       metric: "Free throw accuracy",
-      quote: "SportSkill helped me identify flaws in my shooting form that I never noticed before.",
+      quote: "Sportyfy helped me identify flaws in my shooting form that I never noticed before.",
       image: "/placeholder.svg?height=100&width=100",
     },
     {

@@ -128,7 +128,7 @@ export function PricingSection() {
               </div>
             </div>
             <p className="text-gray-300">
-              Not satisfied with SportSkill Premium? Get a full refund within 30 days, no questions asked.
+              Not satisfied with Sportyfy Premium? Get a full refund within 30 days, no questions asked.
             </p>
           </div>
         </div>

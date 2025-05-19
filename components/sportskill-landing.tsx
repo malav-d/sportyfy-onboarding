@@ -136,7 +136,7 @@ export default function SportskillLanding() {
       <section className="py-16 px-4 bg-[#252525]">
         <div className="container mx-auto">
           <h2 className="font-bebas text-4xl md:text-5xl mb-12 text-center">
-            THE SPORTSKILL <span className="text-[#f23c21]">ADVANTAGE</span>
+            THE SPORTYFY <span className="text-[#f23c21]">ADVANTAGE</span>
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -177,7 +177,7 @@ export default function SportskillLanding() {
               viewport={{ once: true }}
               className="bg-[#1c1c1c] p-6 rounded-lg border border-[#f23c21]"
             >
-              <h3 className="font-bebas text-2xl mb-4 text-[#f23c21]">SPORTSKILL METHOD</h3>
+              <h3 className="font-bebas text-2xl mb-4 text-[#f23c21]">SPORTYFY METHOD</h3>
               <ul className="space-y-3 text-gray-300">
                 <li className="flex items-start">
                   <CheckCircle className="h-5 w-5 text-[#f23c21] mr-2 flex-shrink-0" />
@@ -291,7 +291,7 @@ export default function SportskillLanding() {
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-[#1c1c1c] z-10"></div>
             <img
               src="/placeholder.svg?height=600&width=1200"
-              alt="SportSkill App Showcase"
+              alt="Sportyfy App Showcase"
               className="w-full h-full object-cover"
             />
           </div>
@@ -362,7 +362,7 @@ export default function SportskillLanding() {
                   </div>
                 </div>
                 <p className="text-sm text-gray-300 italic">
-                  "SportSkill helped me identify flaws in my shooting form that my coach couldn't see. My confidence is
+                  "Sportyfy helped me identify flaws in my shooting form that my coach couldn't see. My confidence is
                   at an all-time high!"
                 </p>
                 <div className="mt-4 flex items-center">
@@ -772,7 +772,7 @@ export default function SportskillLanding() {
               <h3 className="font-bold mb-1">Virat Sharma</h3>
               <p className="text-sm text-gray-400 mb-2">National Basketball Player</p>
               <p className="text-sm text-gray-300 italic">
-                "SportSkill transformed how I approach training. The data-driven insights are game-changing."
+                "Sportyfy transformed how I approach training. The data-driven insights are game-changing."
               </p>
             </div>
 
@@ -788,7 +788,7 @@ export default function SportskillLanding() {
               <h3 className="font-bold mb-1">Anjali Desai</h3>
               <p className="text-sm text-gray-400 mb-2">Professional Soccer Player</p>
               <p className="text-sm text-gray-300 italic">
-                "I recommend SportSkill to all young athletes looking to get noticed by scouts and coaches."
+                "I recommend Sportyfy to all young athletes looking to get noticed by scouts and coaches."
               </p>
             </div>
 
@@ -881,7 +881,7 @@ export default function SportskillLanding() {
           </div>
 
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row justify-between items-center">
-            <p className="text-sm text-gray-500 mb-4 md:mb-0">&copy; 2025 SportSkill. All rights reserved.</p>
+            <p className="text-sm text-gray-500 mb-4 md:mb-0">&copy; 2025 Sportyfy. All rights reserved.</p>
 
             <div className="flex space-x-4">
               <a href="#" className="text-sm text-gray-400 hover:text-white">

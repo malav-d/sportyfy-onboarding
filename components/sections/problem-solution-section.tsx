@@ -42,7 +42,7 @@ export function ProblemSolutionSection() {
           transition={{ duration: 0.8 }}
           className="text-4xl md:text-5xl font-bold text-center mb-16 bg-clip-text text-transparent bg-gradient-to-r from-white via-[#ff073a] to-[#00d9ff]"
         >
-          THE SPORTSKILL ADVANTAGE
+          THE SPORTYFY ADVANTAGE
         </motion.h2>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
@@ -102,7 +102,7 @@ export function ProblemSolutionSection() {
               <div className="w-16 h-16 bg-[#00d9ff]/20 rounded-full flex items-center justify-center mb-6">
                 <TrendingUp className="h-8 w-8 text-[#00d9ff]" />
               </div>
-              <h3 className="text-2xl font-bold mb-4 text-white">SPORTSKILL METHOD</h3>
+              <h3 className="text-2xl font-bold mb-4 text-white">SPORTYFY METHOD</h3>
               <ul className="space-y-4 text-white/80">
                 <li className="flex items-start">
                   <CheckCircle className="h-5 w-5 text-[#00d9ff] mr-3 shrink-0 mt-0.5" />

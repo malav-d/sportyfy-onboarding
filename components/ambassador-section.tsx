@@ -12,7 +12,7 @@ export function AmbassadorSection() {
     {
       name: "Vikram Mehta",
       sport: "Basketball",
-      quote: "SportSkill transformed my training routine completely.",
+      quote: "Sportyfy transformed my training routine completely.",
       image: "/placeholder.svg?height=150&width=150",
     },
     {
