@@ -7,12 +7,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true,
-  },
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Disable webpack persistent caching for Cloudflare Pages
-    config.cache = false;
-    return config;
+    unoptimized: true, // Remove this if you want Vercel's image optimization
   },
 }
 
