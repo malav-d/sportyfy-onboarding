@@ -1,0 +1,1 @@
+export { onRequest } from "./../.vercel/output/static/_worker.js";
