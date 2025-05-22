@@ -5,11 +5,11 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "pages:build": "rm -rf .next/cache && next build && npx @cloudflare/next-on-pages",
-    "pages:deploy": "npm run pages:build",
+    "postbuild": "rm -rf .vercel/output/static/cache",
+    "pages:build": "npx @cloudflare/next-on-pages",
+    "pages:deploy": "npm run build && npm run pages:build",
     "start": "next start",
-    "lint": "next lint",
-    "postbuild": "next-on-pages"
+    "lint": "next lint"    
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

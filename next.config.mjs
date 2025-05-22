@@ -9,6 +9,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    // Disable webpack persistent caching for Cloudflare Pages
+    config.cache = false;
+    return config;
+  },
 }
 
-export default nextConfig
+export default nextConfig;
