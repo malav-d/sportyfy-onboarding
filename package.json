@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "pages:build": "rm -rf .next/cache && next build && npx @cloudflare/next-on-pages",
+    "pages:deploy": "npm run pages:build",
     "start": "next start",
     "lint": "next lint",
     "postbuild": "next-on-pages"
