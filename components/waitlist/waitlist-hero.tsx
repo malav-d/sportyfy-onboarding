@@ -11,7 +11,7 @@ type WaitlistHeroProps = {
 
 export function WaitlistHero({ theme }: WaitlistHeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [counter, setCounter] = useState(317)
+  const [counter, setCounter] = useState<number | null>(null)
 
   // Play video on load
   useEffect(() => {
@@ -20,15 +20,11 @@ export function WaitlistHero({ theme }: WaitlistHeroProps) {
         console.error("Video play failed:", error)
       })
     }
-
-    // Simulate counter increasing occasionally
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        setCounter((prev) => prev + 1)
-      }
-    }, 5000)
-
-    return () => clearInterval(interval)
+    // Fetch waitlist count from API
+    fetch("https://api.sportyfy.live/api/v1/waitlist/count")
+      .then((res) => res.json())
+      .then((data) => setCounter(data.total_prospects))
+      .catch((err) => setCounter(0))
   }, [])
 
   return (
@@ -143,7 +139,7 @@ export function WaitlistHero({ theme }: WaitlistHeroProps) {
             <div className="bg-black/40 backdrop-blur-sm border border-white/10 rounded-full px-6 py-2 flex items-center">
               <div className="w-2 h-2 bg-[#8667ff] rounded-full animate-pulse mr-2"></div>
               <span className="text-white/80">
-                <span className="font-bold text-white">{counter}</span> athletes already on the waitlist
+                <span className="font-bold text-white">{counter !== null ? counter : '...'}</span> athletes already on the waitlist
               </span>
             </div>
           </motion.div>

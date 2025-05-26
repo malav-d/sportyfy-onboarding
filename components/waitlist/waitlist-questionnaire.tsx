@@ -73,16 +73,41 @@ export function WaitlistQuestionnaire({ theme }: WaitlistQuestionnaireProps) {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false)
-      setIsSubmitted(true)
-    }, 1500)
-  }
+    // Collect your form data here
+    const data = {
+      email: formData.email,
+      mobile: formData.phone,
+      primary_sport: formData.primarySport,
+      skill_level: formData.skillLevel,
+      goal: formData.goal,
+      training_frequency: formData.trainingFrequency,
+      competition_interest: formData.competitionInterest,
+    };
+
+    try {
+      const response = await fetch('https://api.sportyfy.live/api/v1/waitlist/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        setIsSubmitted(true);
+      } else {
+        // handle error
+      }
+    } catch (error) {
+      // handle error
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Animation variants
   const variants = {

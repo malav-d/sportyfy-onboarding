@@ -14,7 +14,8 @@ export function WaitlistUrgency({ theme }: WaitlistUrgencyProps) {
   const [hours, setHours] = useState(8)
   const [minutes, setMinutes] = useState(43)
   const [seconds, setSeconds] = useState(12)
-  const [spotsRemaining, setSpotsRemaining] = useState(183)
+  const totalSpots = 500
+  const [spotsRemaining, setSpotsRemaining] = useState<number | null>(null)
 
   // Countdown timer
   useEffect(() => {
@@ -42,16 +43,12 @@ export function WaitlistUrgency({ theme }: WaitlistUrgencyProps) {
     return () => clearInterval(timer)
   }, [days, hours, minutes, seconds])
 
-  // Occasionally decrease spots
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (Math.random() > 0.7 && spotsRemaining > 1) {
-        setSpotsRemaining((prev) => prev - 1)
-      }
-    }, 30000)
-
-    return () => clearInterval(interval)
-  }, [spotsRemaining])
+    fetch("https://api.sportyfy.live/api/v1/waitlist/count")
+      .then((res) => res.json())
+      .then((data) => setSpotsRemaining(totalSpots - data.total_prospects))
+      .catch((err) => setSpotsRemaining(totalSpots))
+  }, [])
 
   return (
     <section className="py-16 bg-dark relative overflow-hidden">
@@ -110,12 +107,12 @@ export function WaitlistUrgency({ theme }: WaitlistUrgencyProps) {
 
               <div className="mb-4">
                 <div className="text-3xl md:text-4xl font-bold text-center mb-2">
-                  ONLY <span className="text-[#8667ff]">{spotsRemaining}</span> REMAINING
+                  ONLY <span className="text-[#8667ff]">{spotsRemaining !== null ? spotsRemaining : '...'}</span> REMAINING
                 </div>
                 <div className="w-full bg-black/50 rounded-full h-2.5 mb-2">
                   <div
                     className="bg-gradient-to-r from-[#ff073a] to-[#8667ff] h-2.5 rounded-full"
-                    style={{ width: `${100 - (spotsRemaining / 500) * 100}%` }}
+                    style={{ width: `${100 - ((spotsRemaining !== null ? spotsRemaining : totalSpots) / totalSpots) * 100}%` }}
                   ></div>
                 </div>
                 <div className="flex justify-between text-xs text-white/60">
