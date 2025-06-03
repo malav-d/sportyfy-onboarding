@@ -18,6 +18,11 @@ let auth: Auth
 try {
   app = initializeApp(firebaseConfig)
   auth = getAuth(app)
+
+  // Set language code for better localization
+  auth.languageCode = "en"
+
+  console.log("Firebase initialized successfully")
 } catch (error) {
   console.error("Firebase initialization error:", error)
 }

@@ -9,6 +9,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Sportyfy.live - Epic Challenges. Legendary Moments.",
   description: "Film. Share. Compete. Become a Sports Legend.",
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({

@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authToken, setAuthToken] = useState<string | null>(null)
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null)
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null)
+  const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null)
 
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
 
@@ -53,28 +54,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("user_data")
       }
     }
-  }, [])
+
+    // Cleanup recaptcha on unmount
+    return () => {
+      if (recaptchaVerifier) {
+        try {
+          recaptchaVerifier.clear()
+        } catch (e) {
+          console.error("Error clearing recaptcha on unmount:", e)
+        }
+      }
+    }
+  }, [recaptchaVerifier])
 
   const clearError = () => {
     setError(null)
+  }
+
+  const clearRecaptcha = () => {
+    if (recaptchaVerifier) {
+      try {
+        recaptchaVerifier.clear()
+        setRecaptchaVerifier(null)
+        setRecaptchaWidgetId(null)
+      } catch (e) {
+        console.error("Error clearing recaptcha:", e)
+      }
+    }
+
+    // Also clear the container element
+    const recaptchaContainer = document.getElementById("recaptcha-container")
+    if (recaptchaContainer) {
+      recaptchaContainer.innerHTML = ""
+    }
   }
 
   const initRecaptcha = () => {
     try {
       if (typeof window === "undefined") return null
 
-      // Clear existing recaptcha if any
-      if (recaptchaVerifier) {
-        recaptchaVerifier.clear()
+      // Clear existing recaptcha first
+      clearRecaptcha()
+
+      // Create a fresh container
+      const recaptchaContainer = document.getElementById("recaptcha-container")
+      if (!recaptchaContainer) {
+        console.error("Recaptcha container not found")
+        return null
       }
 
-      const verifier = new RecaptchaVerifier(auth, "recaptcha-container", {
+      // Create a new div with a unique ID
+      const uniqueId = `recaptcha-${Date.now()}`
+      const recaptchaDiv = document.createElement("div")
+      recaptchaDiv.id = uniqueId
+      recaptchaContainer.appendChild(recaptchaDiv)
+
+      const verifier = new RecaptchaVerifier(auth, uniqueId, {
         size: "invisible",
         callback: () => {
           console.log("reCAPTCHA solved")
         },
         "expired-callback": () => {
           console.log("reCAPTCHA expired")
+          setError("Verification expired. Please try again.")
         },
       })
 
@@ -116,25 +158,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Error sending OTP:", err)
 
       // Handle specific Firebase errors
+      let errorMessage = "Failed to send OTP"
+
       if (err.code === "auth/invalid-phone-number") {
-        setError("Invalid phone number format")
+        errorMessage = "Invalid phone number format. Please include country code (e.g., +91)"
       } else if (err.code === "auth/too-many-requests") {
-        setError("Too many requests. Please try again later")
+        errorMessage = "Too many requests. Please try again later"
       } else if (err.code === "auth/captcha-check-failed") {
-        setError("Verification failed. Please try again")
-      } else {
-        setError(err.message || "Failed to send OTP")
+        errorMessage =
+          "Verification failed. This might be due to domain configuration. Please contact support or try again later."
+      } else if (err.code === "auth/quota-exceeded") {
+        errorMessage = "SMS quota exceeded. Please try again later"
+      } else if (err.code === "auth/invalid-app-credential") {
+        errorMessage = "Invalid app credentials. Please contact support"
+      } else if (err.message) {
+        errorMessage = err.message
       }
 
+      setError(errorMessage)
+
       // Reset recaptcha on error
-      if (recaptchaVerifier) {
-        try {
-          recaptchaVerifier.clear()
-          setRecaptchaVerifier(null)
-        } catch (e) {
-          console.error("Error clearing recaptcha:", e)
-        }
-      }
+      clearRecaptcha()
     } finally {
       setIsLoading(false)
     }
@@ -181,10 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Clean up
       setConfirmationResult(null)
-      if (recaptchaVerifier) {
-        recaptchaVerifier.clear()
-        setRecaptchaVerifier(null)
-      }
+      clearRecaptcha()
 
       // If user data exists, set it and return existing user
       if (data.user && data.user.name && data.user.email) {
@@ -254,10 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("user_data")
 
     // Clean up recaptcha
-    if (recaptchaVerifier) {
-      recaptchaVerifier.clear()
-      setRecaptchaVerifier(null)
-    }
+    clearRecaptcha()
 
     // Sign out from Firebase
     auth.signOut().catch(console.error)

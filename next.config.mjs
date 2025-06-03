@@ -7,8 +7,8 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    unoptimized: true, // Remove this if you want Vercel's image optimization
+    unoptimized: true,
   },
 }
 
-export default nextConfig;
+export default nextConfig
