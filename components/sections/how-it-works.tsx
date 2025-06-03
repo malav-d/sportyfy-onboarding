@@ -4,7 +4,7 @@ import { motion } from "framer-motion"
 import { Search, Camera, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function HowItWorks() {
+export function HowItWorks({ theme }: { theme: any }) {
   const steps = [
     {
       icon: <Search className="h-8 w-8 text-[#ff073a]" />,

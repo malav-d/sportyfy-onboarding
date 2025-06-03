@@ -87,9 +87,10 @@ export function WaitlistQuestionnaire({ theme }: WaitlistQuestionnaireProps) {
       training_frequency: formData.trainingFrequency,
       competition_interest: formData.competitionInterest,
     };
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
 
     try {
-      const response = await fetch('https://api.sportyfy.live/api/v1/waitlist/create', {
+      const response = await fetch(`${API_BASE_URL}/waitlist/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

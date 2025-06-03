@@ -6,15 +6,18 @@ import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Menu, X, Bell, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/contexts/auth-context"
 
 type GamifiedNavbarProps = {
   theme: any
   isWaitlistMode?: boolean
+  onOpenAuth?: () => void
 }
 
-export function GamifiedNavbar({ theme, isWaitlistMode = false }: GamifiedNavbarProps) {
+export function GamifiedNavbar({ theme, isWaitlistMode = false, onOpenAuth }: GamifiedNavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const { isAuthenticated, user, logout } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -37,8 +40,8 @@ export function GamifiedNavbar({ theme, isWaitlistMode = false }: GamifiedNavbar
           <div className="flex items-center">
             <div className="relative">
               <div className="absolute -inset-1 bg-gradient-to-r from-primary to-[#8667ff] rounded-full opacity-70 blur-sm"></div>
-              <div className="relative bg-black rounded-full p-1.5">
-                <span className="text-xl font-bold tracking-tight">
+              <div className="relative bg-black rounded-full px-3 py-1.5">
+                <span className="text-lg font-bold tracking-tight text-white">
                   SPORTYFY<span className="text-primary">.LIVE</span>
                 </span>
               </div>
@@ -63,7 +66,7 @@ export function GamifiedNavbar({ theme, isWaitlistMode = false }: GamifiedNavbar
 
           {/* Action Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            {!isWaitlistMode && (
+            {!isWaitlistMode && isAuthenticated && (
               <>
                 <button className="text-white/80 hover:text-white transition-colors">
                   <Bell className="h-5 w-5" />
@@ -73,14 +76,26 @@ export function GamifiedNavbar({ theme, isWaitlistMode = false }: GamifiedNavbar
                 </button>
               </>
             )}
-            <Button className="bg-primary text-white hover:opacity-90 transition-opacity" size="sm"
-              onClick={() => {
-                const el = document.getElementById("waitlist-questionnaire")
-                if (el) el.scrollIntoView({ behavior: "smooth" })
-              }}
-            >
-              {isWaitlistMode ? "Join Waitlist" : "Sign Up"}
-            </Button>
+            {isAuthenticated ? (
+              <div className="flex items-center space-x-3">
+                <span className="text-white/80 text-sm">Hi, {user?.name}</span>
+                <Button
+                  onClick={logout}
+                  className="bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                  size="sm"
+                >
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <Button
+                onClick={onOpenAuth}
+                className="bg-primary text-white hover:opacity-90 transition-opacity"
+                size="sm"
+              >
+                Sign Up
+              </Button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -130,11 +145,28 @@ export function GamifiedNavbar({ theme, isWaitlistMode = false }: GamifiedNavbar
                   Community
                 </a>
                 <div className="pt-2 flex items-center justify-between">
-                  <Button className="bg-primary text-white hover:opacity-90 transition-opacity" size="sm">
-                    {isWaitlistMode ? "Join Waitlist" : "Sign Up"}
-                  </Button>
-                  {!isWaitlistMode && (
-                    <div className="flex space-x-4">
+                  {isAuthenticated ? (
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-white/80 text-sm">Hi, {user?.name}</span>
+                      <Button
+                        onClick={logout}
+                        className="bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                        size="sm"
+                      >
+                        Logout
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={onOpenAuth}
+                      className="bg-primary text-white hover:opacity-90 transition-opacity"
+                      size="sm"
+                    >
+                      Sign Up
+                    </Button>
+                  )}
+                  {!isWaitlistMode && isAuthenticated && (
+                    <div className="flex space-x-4 ml-4">
                       <button className="text-white/80 hover:text-white transition-colors">
                         <Bell className="h-5 w-5" />
                       </button>

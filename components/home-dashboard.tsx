@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -8,9 +9,10 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { BarChart, Bar, XAxis, ResponsiveContainer } from "recharts"
 import { ChartContainer } from "@/components/ui/chart"
-import { Flame, Search, Trophy } from "lucide-react"
+import { Flame, Search, Trophy, LogOut, Settings } from "lucide-react"
 import { NavigationBar } from "@/components/navigation-bar"
 import { useTheme } from "@/components/theme-context"
+import { useAuth } from "@/contexts/auth-context"
 
 const activityData = [
   { day: "Mon", value: 3 },
@@ -87,9 +89,54 @@ export function HomeDashboard() {
   const [nextLevelXp, setNextLevelXp] = useState(1000)
   const [currentLevel, setCurrentLevel] = useState(8)
   const [streakDays, setStreakDays] = useState(12)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
   const theme = useTheme()
+  const { user, isAuthenticated, logout, isLoading } = useAuth()
+  const router = useRouter()
+
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push("/")
+    }
+  }, [isAuthenticated, isLoading, router])
+
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f13]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated
+  if (!isAuthenticated || !user) {
+    return null
+  }
 
   const xpProgress = (currentXp / nextLevelXp) * 100
+
+  const handleLogout = () => {
+    logout()
+    router.push("/")
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated || !user) return; // Only run if video is rendered
+    const video = videoRef.current;
+    if (video) {
+      video.play().catch(() => {});
+    }
+    return () => {
+      if (video) video.pause();
+    };
+  }, [isAuthenticated, user]);
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0f0f13]">
@@ -99,11 +146,13 @@ export function HomeDashboard() {
           <div className="flex items-center gap-3">
             <Avatar className={`h-10 w-10 border-2 border-[${theme.colors.primary}]`}>
               <AvatarImage src="/placeholder.svg?height=40&width=40" alt="User avatar" />
-              <AvatarFallback className={`bg-[${theme.colors.primary}] text-white`}>JD</AvatarFallback>
+              <AvatarFallback className={`bg-[${theme.colors.primary}] text-white`}>
+                {user.name?.charAt(0)?.toUpperCase() || "U"}
+              </AvatarFallback>
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-poppins text-lg font-bold">Jordan Davis</h2>
+                <h2 className="font-poppins text-lg font-bold">{user.name}</h2>
                 <Badge className={`bg-[${theme.colors.primary}]`}>Lvl {currentLevel}</Badge>
               </div>
               <div className="flex items-center gap-1 text-xs text-gray-400">
@@ -116,16 +165,76 @@ export function HomeDashboard() {
               </div>
             </div>
           </div>
-          <Button variant="outline" size="icon" className="rounded-full border-[#1a1a22] bg-[#1a1a22]">
-            <Search className="h-5 w-5 text-white" />
-            <span className="sr-only">Search</span>
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="rounded-full border-[#1a1a22] bg-[#1a1a22]">
+              <Search className="h-5 w-5 text-white" />
+              <span className="sr-only">Search</span>
+            </Button>
+
+            {/* User Menu */}
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="icon"
+                className="rounded-full border-[#1a1a22] bg-[#1a1a22]"
+                onClick={() => setShowUserMenu(!showUserMenu)}
+              >
+                <Settings className="h-5 w-5 text-white" />
+                <span className="sr-only">User menu</span>
+              </Button>
+
+              {showUserMenu && (
+                <div className="absolute right-0 top-12 w-48 bg-[#1a1a22] border border-gray-700 rounded-lg shadow-lg z-20">
+                  <div className="p-3 border-b border-gray-700">
+                    <p className="text-sm font-medium text-white">{user.name}</p>
+                    <p className="text-xs text-gray-400">{user.email}</p>
+                  </div>
+                  <div className="p-1">
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-left text-white hover:bg-gray-700"
+                      onClick={() => {
+                        setShowUserMenu(false)
+                        // Add profile navigation here
+                      }}
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      Profile Settings
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-left text-red-400 hover:bg-gray-700 hover:text-red-300"
+                      onClick={() => {
+                        setShowUserMenu(false)
+                        handleLogout()
+                      }}
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </header>
+
+      {/* Click outside to close user menu */}
+      {showUserMenu && <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />}
 
       {/* Main Content */}
       <main className="flex-1 p-4">
         <div className="mx-auto max-w-5xl space-y-6">
+          {/* Welcome Message */}
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-white mb-2">
+              Welcome back, <span className="text-red-500">{user.name}</span>! 🏆
+            </h1>
+            <p className="text-gray-400">Ready to dominate today's challenges?</p>
+          </div>
+
           {/* XP Progress */}
           <Card className="bg-[#1a1a22] border-0">
             <CardContent className="p-4">
@@ -144,7 +253,10 @@ export function HomeDashboard() {
               </div>
               <Progress
                 value={xpProgress}
-                className={`h-2 bg-[${theme.colors.primary}]`}
+                className="mt-2 h-2 bg-[#0f0f13]"
+                style={{
+                  "--indicator-color": theme.colors.primary,
+                } as React.CSSProperties}
               />
             </CardContent>
           </Card>
@@ -312,6 +424,8 @@ export function HomeDashboard() {
       </main>
 
       <NavigationBar />
+
+      <video ref={videoRef} src="your-video.mp4" />
     </div>
   )
 }

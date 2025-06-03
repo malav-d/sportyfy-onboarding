@@ -44,7 +44,8 @@ export function WaitlistUrgency({ theme }: WaitlistUrgencyProps) {
   }, [days, hours, minutes, seconds])
 
   useEffect(() => {
-    fetch("https://api.sportyfy.live/api/v1/waitlist/count")
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+    fetch(`${API_BASE_URL}/waitlist/count`)
       .then((res) => res.json())
       .then((data) => setSpotsRemaining(totalSpots - data.total_prospects))
       .catch((err) => setSpotsRemaining(totalSpots))

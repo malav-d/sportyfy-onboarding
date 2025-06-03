@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { Play, Star, Users, ChevronRight, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function TrendingChallenges() {
+export function TrendingChallenges({ theme }: { theme: any }) {
   const [activeCategory, setActiveCategory] = useState("all")
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 

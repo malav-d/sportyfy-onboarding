@@ -3,7 +3,7 @@
 import { motion } from "framer-motion"
 import { Play, Heart, MessageCircle, Award, Star, Flame, Users } from "lucide-react"
 
-export function CommunityHighlights() {
+export function CommunityHighlights({ theme }: { theme: any }) {
   const highlights = [
     {
       id: 1,

@@ -4,7 +4,7 @@ import { motion } from "framer-motion"
 import { Play, Share2, Heart, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function SocialProof() {
+export function SocialProof({ theme }: { theme: any }) {
   const successStories = [
     {
       id: 1,

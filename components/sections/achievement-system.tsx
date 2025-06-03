@@ -4,7 +4,7 @@ import { motion } from "framer-motion"
 import { Award, Zap, Users, Flame } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function AchievementSystem() {
+export function AchievementSystem({ theme }: { theme: any }) {
   const achievements = [
     {
       icon: <Flame className="h-8 w-8 text-[#ff073a]" />,

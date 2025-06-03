@@ -12,7 +12,7 @@ type WaitlistHeroProps = {
 export function WaitlistHero({ theme }: WaitlistHeroProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [counter, setCounter] = useState<number | null>(null)
-
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
   // Play video on load
   useEffect(() => {
     if (videoRef.current) {
@@ -21,7 +21,7 @@ export function WaitlistHero({ theme }: WaitlistHeroProps) {
       })
     }
     // Fetch waitlist count from API
-    fetch("https://api.sportyfy.live/api/v1/waitlist/count")
+    fetch(`${API_BASE_URL}/waitlist/count`)
       .then((res) => res.json())
       .then((data) => setCounter(data.total_prospects))
       .catch((err) => setCounter(0))
