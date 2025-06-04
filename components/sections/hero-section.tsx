@@ -31,10 +31,24 @@ export function HeroSection({ theme }: HeroSectionProps) {
 
   // Play video on load
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.play().catch((error) => {
-        console.error("Video play failed:", error)
-      })
+    const video = videoRef.current
+    if (video) {
+      const playPromise = video.play()
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          // Only log actual errors, not interruptions from component unmount
+          if (error.name !== "AbortError") {
+            console.error("Video play failed:", error)
+          }
+        })
+      }
+    }
+
+    // Cleanup function to pause video when component unmounts
+    return () => {
+      if (video && !video.paused) {
+        video.pause()
+      }
     }
   }, [])
 

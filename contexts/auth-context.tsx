@@ -59,13 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (recaptchaVerifier) {
         try {
-          recaptchaVerifier.clear()
+          // Check if the verifier is still valid before clearing
+          if (typeof recaptchaVerifier.clear === "function") {
+            recaptchaVerifier.clear()
+          }
         } catch (e) {
-          console.error("Error clearing recaptcha on unmount:", e)
+          // Silently handle cleanup errors as component is unmounting
+          console.warn("Recaptcha cleanup warning:", e)
         }
       }
     }
-  }, [recaptchaVerifier])
+  }, []) // Remove recaptchaVerifier from dependency array to prevent re-runs
 
   const clearError = () => {
     setError(null)
@@ -74,11 +78,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearRecaptcha = () => {
     if (recaptchaVerifier) {
       try {
-        recaptchaVerifier.clear()
+        // Additional safety checks
+        if (typeof recaptchaVerifier.clear === "function") {
+          recaptchaVerifier.clear()
+        }
         setRecaptchaVerifier(null)
         setRecaptchaWidgetId(null)
       } catch (e) {
-        console.error("Error clearing recaptcha:", e)
+        // Log warning but don't throw error
+        console.warn("Error clearing recaptcha:", e)
+        // Still reset the state even if clearing failed
+        setRecaptchaVerifier(null)
+        setRecaptchaWidgetId(null)
       }
     }
 

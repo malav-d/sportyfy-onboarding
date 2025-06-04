@@ -160,7 +160,23 @@ export function HomeDashboard() {
       } else {
         setAvailableChallenges([]) // Ensure it's always an array
       }
-      if (activityResponse.data) setActivityFeed(activityResponse.data)
+      // Handle activity feed response - ensure it's always an array
+      if (activityResponse.data) {
+        // Check if it's a nested structure like other APIs
+        if (activityResponse.data.success && activityResponse.data.data) {
+          setActivityFeed(Array.isArray(activityResponse.data.data) ? activityResponse.data.data : [])
+        }
+        // Check if it's a direct array
+        else if (Array.isArray(activityResponse.data)) {
+          setActivityFeed(activityResponse.data)
+        }
+        // Fallback to empty array
+        else {
+          setActivityFeed([])
+        }
+      } else {
+        setActivityFeed([])
+      }
       // Handle the nested response structure for leaderboard
       if (leaderboardResponse.data?.success && leaderboardResponse.data?.data) {
         setLeaderboard(leaderboardResponse.data.data)
@@ -493,36 +509,42 @@ export function HomeDashboard() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="max-h-80 overflow-y-auto">
-                  {activityFeed.slice(0, 10).map((activity) => (
-                    <div key={activity.id} className="p-4 border-b border-gray-700 last:border-b-0">
-                      <div className="flex items-start gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={activity.user.avatar || "/placeholder.svg"} />
-                          <AvatarFallback className="text-xs">{activity.user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white">
-                            <span className="font-medium">{activity.user.name}</span>
-                            <Badge className="ml-2 text-xs bg-primary/20 text-primary">L{activity.user.level}</Badge>
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">{activity.action}</p>
-                          {activity.challenge && <p className="text-xs text-primary mt-1">{activity.challenge}</p>}
-                          <div className="flex items-center gap-2 mt-2">
-                            <button
-                              onClick={() => likeActivity(activity.id)}
-                              className={`flex items-center gap-1 text-xs ${
-                                activity.isLiked ? "text-red-400" : "text-gray-400"
-                              } hover:text-red-400 transition-colors`}
-                            >
-                              <Heart className={`h-3 w-3 ${activity.isLiked ? "fill-current" : ""}`} />
-                              {activity.likes}
-                            </button>
-                            <span className="text-xs text-gray-500">{activity.timestamp}</span>
+                  {Array.isArray(activityFeed) && activityFeed.length > 0 ? (
+                    activityFeed.slice(0, 10).map((activity) => (
+                      <div key={activity.id} className="p-4 border-b border-gray-700 last:border-b-0">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={activity.user.avatar || "/placeholder.svg"} />
+                            <AvatarFallback className="text-xs">{activity.user.name.charAt(0)}</AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white">
+                              <span className="font-medium">{activity.user.name}</span>
+                              <Badge className="ml-2 text-xs bg-primary/20 text-primary">L{activity.user.level}</Badge>
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">{activity.action}</p>
+                            {activity.challenge && <p className="text-xs text-primary mt-1">{activity.challenge}</p>}
+                            <div className="flex items-center gap-2 mt-2">
+                              <button
+                                onClick={() => likeActivity(activity.id)}
+                                className={`flex items-center gap-1 text-xs ${
+                                  activity.isLiked ? "text-red-400" : "text-gray-400"
+                                } hover:text-red-400 transition-colors`}
+                              >
+                                <Heart className={`h-3 w-3 ${activity.isLiked ? "fill-current" : ""}`} />
+                                {activity.likes}
+                              </button>
+                              <span className="text-xs text-gray-500">{activity.timestamp}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
+                    ))
+                  ) : (
+                    <div className="p-4 text-center text-gray-400">
+                      <p className="text-sm">No recent activity</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
