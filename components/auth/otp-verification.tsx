@@ -4,6 +4,7 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
+import { Shield, ArrowLeft, ArrowRight, RotateCcw } from "lucide-react"
 
 interface OTPVerificationProps {
   onVerified: (isNewUser: boolean) => void
@@ -96,70 +97,98 @@ export default function OTPVerification({ onVerified, onBack }: OTPVerificationP
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white mb-2">Enter OTP</h2>
-        <p className="text-gray-400">
-          We've sent a 6-digit code to <span className="text-white font-medium">{pendingPhone}</span>
-        </p>
-      </div>
+    <div className="p-6 h-full flex flex-col">
+      <div className="flex-1">
+        {/* Icon */}
+        <div className="flex justify-center mb-8">
+          <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center">
+            <Shield className="w-8 h-8 text-white" />
+          </div>
+        </div>
 
-      <div className="space-y-6">
-        <div className="flex justify-center space-x-3">
-          {otp.map((digit, index) => (
-            <input
-              key={index}
-              ref={(el) => {
-                if (el) {
-                  inputRefs.current[index] = el
-                }
-              }}
-              type="text"
-              inputMode="numeric"
-              maxLength={1}
-              value={digit}
-              onChange={(e) => handleInputChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              className="w-12 h-12 text-center text-xl font-bold bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-orange-500 transition-colors"
-            />
-          ))}
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-3xl font-bold text-black mb-3">Verify Your Number</h1>
+          <p className="text-gray-600 text-lg leading-relaxed">
+            Enter the 6-digit code sent to <span className="font-mono font-bold text-black">{pendingPhone}</span>
+          </p>
+        </div>
+
+        {/* OTP Input */}
+        <div className="mb-8">
+          <label className="block text-sm font-medium text-gray-700 mb-4 uppercase tracking-wide text-center">
+            Verification Code
+          </label>
+          <div className="flex justify-center space-x-3">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                ref={(el) => {
+                  if (el) {
+                    inputRefs.current[index] = el
+                  }
+                }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleInputChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                className="w-12 h-14 text-center text-2xl font-bold bg-white border-2 border-gray-300 rounded-none text-black focus:outline-none focus:border-black transition-colors font-mono"
+              />
+            ))}
+          </div>
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-            <p className="text-red-400 text-sm text-center">{error}</p>
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+            <p className="text-red-700 text-sm font-medium text-center">{error}</p>
           </div>
         )}
 
-        <div className="text-center">
+        {/* Resend Section */}
+        <div className="text-center mb-8">
           {canResend ? (
             <button
               onClick={handleResend}
               disabled={isLoading}
-              className="text-orange-500 hover:text-orange-400 transition-colors disabled:opacity-50"
+              className="inline-flex items-center space-x-2 text-black hover:text-gray-700 transition-colors disabled:opacity-50 font-medium"
             >
-              Resend OTP
+              <RotateCcw className="w-4 h-4" />
+              <span>Resend Code</span>
             </button>
           ) : (
-            <p className="text-gray-400">
-              Resend OTP in <span className="text-white">{countdown}s</span>
+            <p className="text-gray-600">
+              Resend code in <span className="font-mono font-bold text-black">{countdown}s</span>
             </p>
           )}
         </div>
+      </div>
 
+      {/* Bottom Actions */}
+      <div className="pt-6 border-t border-gray-200 space-y-4">
         <Button
           onClick={() => handleVerify()}
           disabled={isLoading || otp.some((digit) => digit === "")}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50"
+          className="w-full bg-black hover:bg-gray-800 text-white font-bold py-4 px-6 rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-lg"
         >
-          {isLoading ? "VERIFYING..." : "VERIFY"}
+          {isLoading ? (
+            <span>VERIFYING...</span>
+          ) : (
+            <>
+              <span>VERIFY CODE</span>
+              <ArrowRight className="w-5 h-5" />
+            </>
+          )}
         </Button>
 
-        <div className="text-center">
-          <button onClick={onBack} className="text-gray-400 hover:text-white transition-colors">
-            ← Back to edit phone number
-          </button>
-        </div>
+        <button
+          onClick={onBack}
+          className="w-full flex items-center justify-center space-x-2 text-gray-600 hover:text-black transition-colors py-3 font-medium"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to edit phone number</span>
+        </button>
       </div>
     </div>
   )

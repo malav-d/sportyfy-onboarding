@@ -1,10 +1,10 @@
-import GamifiedLanding from "@/components/gamified-landing"
+import MonoLanding from "@/components/mono-landing"
 
 export default function Home() {
-  return <GamifiedLanding />
+  return <MonoLanding />
 }
-// import WaitlistLanding from "@/components/waitlist-landing"
+// import GamifiedLanding from "@/components/gamified-landing"
 
 // export default function Home() {
-//   return <WaitlistLanding />
+//   return <GamifiedLanding />
 // }

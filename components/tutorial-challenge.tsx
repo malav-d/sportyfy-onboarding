@@ -4,19 +4,7 @@ import type React from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import {
-  Camera,
-  Trophy,
-  Star,
-  Play,
-  CheckCircle,
-  Users,
-  Clock,
-  Target,
-  ArrowLeft,
-  FileVideo,
-  Sparkles,
-} from "lucide-react"
+import { Camera, Trophy, Star, Play, CheckCircle, ArrowLeft, FileVideo, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Card, CardContent } from "@/components/ui/card"
@@ -196,88 +184,80 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="text-center space-y-8 max-w-4xl mx-auto"
+      className="text-center space-y-6 max-w-3xl mx-auto"
     >
-      {/* Hero Section */}
-      <div className="space-y-4">
-        <div className="text-6xl mb-4">🎯</div>
-        <h1 className="text-4xl font-bold text-white">Getting in the Game</h1>
-        <h2 className="text-xl text-primary">Your First Challenge</h2>
-        <p className="text-gray-300 text-lg">Learn how SPORTYFY works by completing your first mini-challenge</p>
-      </div>
-
-      {/* Challenge Details Panel */}
-      <Card className="bg-gray-800/50 border-gray-700 max-w-2xl mx-auto">
-        <CardContent className="p-8 space-y-6">
-          <div className="grid grid-cols-2 gap-6 text-left">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-white font-medium">Time Required</p>
-                  <p className="text-gray-400 text-sm">3-5 minutes</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Target className="h-5 w-5 text-green-400" />
-                <div>
-                  <p className="text-white font-medium">Difficulty</p>
-                  <p className="text-gray-400 text-sm">Super Easy</p>
-                </div>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Trophy className="h-5 w-5 text-yellow-400" />
-                <div>
-                  <p className="text-white font-medium">Reward</p>
-                  <p className="text-gray-400 text-sm">100 XP + Badge</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-blue-400" />
-                <div>
-                  <p className="text-white font-medium">Community</p>
-                  <p className="text-gray-400 text-sm">50,000+ started here!</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-700 pt-6">
-            <h3 className="text-white font-medium mb-3">📱 What You'll Do:</h3>
-            <ul className="text-gray-300 space-y-2 text-sm">
-              <li>• Choose a simple movement (jump/squat/dribble)</li>
-              <li>• Record or upload a 10-second video</li>
-              <li>• Get encouraging feedback</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Motivation */}
-      <div className="space-y-4">
-        <p className="text-gray-400 italic">"Every sports legend started with their first move"</p>
-        <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white font-bold">S</div>
-          <span>Sarah earned her first 100 XP here!</span>
+      {/* Hero Visual */}
+      <motion.div initial={{ scale: 0.8 }} animate={{ scale: 1 }} transition={{ delay: 0.2 }} className="relative">
+        <div className="w-32 h-32 bg-gradient-to-br from-primary via-purple-500 to-secondary rounded-full mx-auto mb-6 flex items-center justify-center shadow-2xl">
+          <div className="text-5xl">🎯</div>
         </div>
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 20, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
+          className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center"
+        >
+          ✨
+        </motion.div>
+      </motion.div>
+
+      {/* Punchy Title */}
+      <div className="space-y-2">
+        <h1 className="text-5xl font-black text-white leading-tight">
+          Your First{" "}
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">Win</span>
+        </h1>
+        <p className="text-xl text-gray-300">3 minutes to unlock your potential</p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="space-y-4">
+      {/* Reward Preview */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.4 }}
+        className="bg-gradient-to-r from-primary/20 to-secondary/20 border border-primary/30 rounded-2xl p-6"
+      >
+        <div className="flex items-center justify-center gap-8">
+          <div className="text-center">
+            <div className="text-3xl mb-2">🏆</div>
+            <div className="text-primary font-bold text-lg">100 XP</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl mb-2">⚡</div>
+            <div className="text-yellow-400 font-bold text-lg">First Badge</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl mb-2">🚀</div>
+            <div className="text-green-400 font-bold text-lg">Arena Access</div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Social Proof */}
+      <div className="flex items-center justify-center gap-4 text-gray-400">
+        <div className="flex -space-x-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="w-8 h-8 bg-gradient-to-r from-primary to-secondary rounded-full border-2 border-gray-800 flex items-center justify-center text-white text-xs font-bold"
+            >
+              {String.fromCharCode(64 + i)}
+            </div>
+          ))}
+        </div>
+        <span className="text-sm">50K+ athletes started here</span>
+      </div>
+
+      {/* CTA */}
+      <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} transition={{ delay: 0.6 }} className="pt-4">
         <Button
           onClick={() => setCurrentStep("recording-options")}
-          className="bg-primary text-white hover:opacity-90 text-lg px-8 py-6 h-auto"
+          className="bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 text-xl px-12 py-8 h-auto rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-200"
           size="lg"
         >
-          <Sparkles className="h-5 w-5 mr-2" />
-          Start Your Journey
+          <Sparkles className="h-6 w-6 mr-3" />
+          Let's Go! 🚀
         </Button>
-        <Button variant="outline" className="border-gray-600 text-gray-300">
-          📖 Learn More
-        </Button>
-      </div>
+      </motion.div>
     </motion.div>
   )
 
@@ -287,63 +267,61 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
       animate={{ opacity: 1, y: 0 }}
       className="text-center space-y-8 max-w-4xl mx-auto"
     >
-      <div className="space-y-4">
-        <h2 className="text-3xl font-bold text-white">Choose Your Recording Method</h2>
-        <p className="text-gray-300">Both options work perfectly! Choose what feels comfortable.</p>
+      <div className="space-y-3">
+        <h2 className="text-4xl font-bold text-white">How will you show us?</h2>
+        <p className="text-gray-400">Pick your style</p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-        {/* Live Recording Option */}
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+      <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+        {/* Live Recording */}
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           <Card
-            className={`bg-gray-800/50 border-2 cursor-pointer transition-all h-full ${
-              recordingMethod === "live" ? "border-primary bg-primary/10" : "border-gray-700 hover:border-gray-600"
+            className={`cursor-pointer transition-all h-full border-2 ${
+              recordingMethod === "live"
+                ? "border-primary bg-primary/20 shadow-2xl shadow-primary/25"
+                : "border-gray-600 bg-gray-800/30 hover:border-primary/50"
             }`}
             onClick={() => setRecordingMethod("live")}
           >
-            <CardContent className="p-8 text-center space-y-6">
-              <div className="text-4xl">📱</div>
-              <div>
-                <h3 className="text-xl font-bold text-white mb-2">RECORD</h3>
-                <p className="text-gray-400 mb-4">Live on App</p>
-              </div>
-              <ul className="text-left text-gray-300 space-y-2 text-sm">
-                <li>• Use your phone camera</li>
-                <li>• Get live tips</li>
-                <li>• Perfect angle guidance</li>
-              </ul>
-              <Badge className="bg-primary text-white">⭐ Recommended for beginners</Badge>
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="text-6xl">📱</div>
+              <h3 className="text-2xl font-bold text-white">RECORD NOW</h3>
+              <p className="text-gray-300">Use your camera</p>
+              {recordingMethod === "live" && (
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                  <Badge className="bg-primary text-white text-sm px-4 py-1">✓ Selected</Badge>
+                </motion.div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
 
         {/* Upload Option */}
-        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+        <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
           <Card
-            className={`bg-gray-800/50 border-2 cursor-pointer transition-all h-full ${
-              recordingMethod === "upload" ? "border-primary bg-primary/10" : "border-gray-700 hover:border-gray-600"
+            className={`cursor-pointer transition-all h-full border-2 ${
+              recordingMethod === "upload"
+                ? "border-primary bg-primary/20 shadow-2xl shadow-primary/25"
+                : "border-gray-600 bg-gray-800/30 hover:border-primary/50"
             }`}
             onClick={() => setRecordingMethod("upload")}
           >
-            <CardContent className="p-8 text-center space-y-6">
-              <div className="text-4xl">📤</div>
-              <div>
-                <h3 className="text-xl font-bold text-white mb-2">UPLOAD</h3>
-                <p className="text-gray-400 mb-4">Existing Video</p>
-              </div>
-              <ul className="text-left text-gray-300 space-y-2 text-sm">
-                <li>• Already have a video?</li>
-                <li>• Upload from your gallery</li>
-                <li>• Quick and easy</li>
-              </ul>
-              <Badge className="bg-blue-500 text-white">⚡ Quick Option</Badge>
+            <CardContent className="p-8 text-center space-y-4">
+              <div className="text-6xl">📤</div>
+              <h3 className="text-2xl font-bold text-white">UPLOAD</h3>
+              <p className="text-gray-300">From your gallery</p>
+              {recordingMethod === "upload" && (
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                  <Badge className="bg-primary text-white text-sm px-4 py-1">✓ Selected</Badge>
+                </motion.div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
       </div>
 
       {recordingMethod && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="pt-4">
           <Button
             onClick={() => {
               if (recordingMethod === "live") {
@@ -352,18 +330,13 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
                 setCurrentStep("upload-instructions")
               }
             }}
-            className="bg-primary text-white hover:opacity-90"
+            className="bg-primary text-white hover:opacity-90 text-lg px-8 py-4 rounded-xl"
             size="lg"
           >
-            Continue with {recordingMethod === "live" ? "Live Recording" : "Upload"}
+            Continue →
           </Button>
         </motion.div>
       )}
-
-      <Button variant="ghost" onClick={() => setCurrentStep("introduction")} className="text-gray-400 hover:text-white">
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Challenge Overview
-      </Button>
     </motion.div>
   )
 
@@ -371,62 +344,60 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="text-center space-y-8 max-w-4xl mx-auto"
+      className="text-center space-y-8 max-w-5xl mx-auto"
     >
-      <div className="space-y-4">
-        <h2 className="text-3xl font-bold text-white">Pick Your Movement</h2>
-        <p className="text-gray-300">(Choose What Feels Easy!)</p>
+      <div className="space-y-3">
+        <h2 className="text-4xl font-bold text-white">Choose Your Move</h2>
+        <p className="text-gray-400">What feels easy right now?</p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-        {movements.map((movement) => (
-          <motion.div key={movement.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+      <div className="grid md:grid-cols-3 gap-6">
+        {movements.map((movement, index) => (
+          <motion.div
+            key={movement.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
             <Card
-              className={`bg-gray-800/50 border-2 cursor-pointer transition-all ${
+              className={`cursor-pointer transition-all border-2 ${
                 selectedMovement === movement.id
-                  ? "border-primary bg-primary/10"
-                  : "border-gray-700 hover:border-gray-600"
+                  ? "border-primary bg-primary/20 shadow-2xl shadow-primary/25"
+                  : "border-gray-600 bg-gray-800/30 hover:border-primary/50"
               }`}
               onClick={() => setSelectedMovement(movement.id)}
             >
-              <CardContent className="p-6 text-center space-y-4">
-                <div className="text-4xl">{movement.icon}</div>
+              <CardContent className="p-8 text-center space-y-4">
+                <div className="text-6xl">{movement.icon}</div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">{movement.name}</h3>
-                  <p className="text-primary text-sm font-medium">{movement.description}</p>
-                  <p className="text-gray-400 text-sm mt-2">{movement.detail}</p>
+                  <h3 className="text-xl font-bold text-white">{movement.name}</h3>
+                  <p className="text-primary font-medium">{movement.description}</p>
+                  <p className="text-gray-400 text-sm">{movement.detail}</p>
                 </div>
-                {selectedMovement === movement.id && <Badge className="bg-primary text-white">Selected</Badge>}
+                {selectedMovement === movement.id && (
+                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}>
+                    <Badge className="bg-primary text-white">✓ Let's do this!</Badge>
+                  </motion.div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
         ))}
       </div>
 
-      <div className="text-center text-gray-400">
-        <p className="text-sm">💡 Tip: Pick what you can do right now!</p>
-      </div>
-
       {selectedMovement && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="pt-4">
           <Button
             onClick={() => setCurrentStep("camera-setup")}
-            className="bg-primary text-white hover:opacity-90"
+            className="bg-primary text-white hover:opacity-90 text-lg px-8 py-4 rounded-xl"
             size="lg"
           >
-            Continue with {getSelectedMovement()?.name}
+            Ready to {getSelectedMovement()?.name.toLowerCase()}! →
           </Button>
         </motion.div>
       )}
-
-      <Button
-        variant="ghost"
-        onClick={() => setCurrentStep("recording-options")}
-        className="text-gray-400 hover:text-white"
-      >
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to Recording Options
-      </Button>
     </motion.div>
   )
 

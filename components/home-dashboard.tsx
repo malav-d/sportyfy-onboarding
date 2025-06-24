@@ -403,10 +403,10 @@ export function HomeDashboard() {
                   key={action.label}
                   onClick={action.action}
                   variant="outline"
-                  className="h-16 flex-col gap-2 border-gray-600 hover:border-primary hover:bg-primary/10"
+                  className="h-16 flex-col gap-2 border-gray-600 hover:border-primary hover:bg-primary/10 text-white bg-gray-700/40"
                 >
-                  <action.icon className="h-5 w-5" />
-                  <span className="text-xs">{action.label}</span>
+                  <action.icon className="h-5 w-5 text-primary" />
+                  <span className="text-xs font-medium">{action.label}</span>
                 </Button>
               ))}
             </div>
