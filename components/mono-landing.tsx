@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import AuthPanel from "@/components/auth/auth-panel"
 import { useAuth } from "@/contexts/auth-context"
@@ -9,12 +9,44 @@ import { Menu, X, ArrowRight, Target, Zap, Brain } from "lucide-react"
 export default function MonoLanding() {
   const [isAuthOpen, setIsAuthOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { isAuthenticated, user } = useAuth()
+  const [authLoaded, setAuthLoaded] = useState(false)
+
+  // Use optional chaining and provide defaults to prevent timeout issues
+  const authContext = useAuth()
+  const isAuthenticated = authContext?.isAuthenticated || false
+  const user = authContext?.user || null
+  const isAuthLoading = authContext?.isLoading || false
+
+  // Add timeout protection for auth loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setAuthLoaded(true)
+    }, 5000) // 5 second timeout
+
+    if (!isAuthLoading) {
+      setAuthLoaded(true)
+      clearTimeout(timeout)
+    }
+
+    return () => clearTimeout(timeout)
+  }, [isAuthLoading])
 
   const scrollToSection = (sectionId: string) => {
-    const element = document.getElementById(sectionId)
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" })
+    try {
+      const element = document.getElementById(sectionId)
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth" })
+      }
+    } catch (error) {
+      console.warn("Scroll error:", error)
+    }
+  }
+
+  const handleDashboardRedirect = () => {
+    try {
+      window.location.href = "/dashboard"
+    } catch (error) {
+      console.warn("Navigation error:", error)
     }
   }
 
@@ -55,21 +87,26 @@ export default function MonoLanding() {
 
             {/* Auth Button */}
             <div className="hidden md:block">
-              {isAuthenticated ? (
+              {authLoaded && isAuthenticated ? (
                 <div className="flex items-center space-x-3">
-                  <span className="text-sm text-gray-600">Hi, {user?.name}</span>
+                  <span className="text-sm text-gray-600">Hi, {user?.name || "User"}</span>
                   <Button
                     variant="outline"
                     size="sm"
                     className="border-black text-black hover:bg-black hover:text-white bg-white"
-                    onClick={() => (window.location.href = "/dashboard")}
+                    onClick={handleDashboardRedirect}
                   >
                     Dashboard
                   </Button>
                 </div>
               ) : (
-                <Button onClick={() => setIsAuthOpen(true)} className="bg-black text-white hover:bg-gray-800" size="sm">
-                  Sign Up
+                <Button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="bg-black text-white hover:bg-gray-800"
+                  size="sm"
+                  disabled={!authLoaded && isAuthLoading}
+                >
+                  {!authLoaded && isAuthLoading ? "Loading..." : "Sign Up"}
                 </Button>
               )}
             </div>
@@ -112,7 +149,7 @@ export default function MonoLanding() {
               >
                 Pathways
               </button>
-              {!isAuthenticated && (
+              {!(authLoaded && isAuthenticated) && (
                 <Button
                   onClick={() => {
                     setIsAuthOpen(true)
@@ -120,8 +157,9 @@ export default function MonoLanding() {
                   }}
                   className="bg-black text-white hover:bg-gray-800 w-full"
                   size="sm"
+                  disabled={!authLoaded && isAuthLoading}
                 >
-                  Sign Up
+                  {!authLoaded && isAuthLoading ? "Loading..." : "Sign Up"}
                 </Button>
               )}
             </div>
@@ -303,8 +341,8 @@ export default function MonoLanding() {
         </div>
       </footer>
 
-      {/* Auth Panel - Preserved exactly as is */}
-      <AuthPanel isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      {/* Auth Panel */}
+      {authLoaded && <AuthPanel isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />}
     </div>
   )
 }

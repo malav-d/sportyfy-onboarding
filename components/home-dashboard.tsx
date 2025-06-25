@@ -2,19 +2,16 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { motion } from "framer-motion"
-import { Flame, Trophy, Target, Users, Clock, TrendingUp, Play, Heart, Crown, Zap, Award } from "lucide-react"
-import { NavigationBar } from "@/components/navigation-bar"
-import { useTheme } from "@/components/theme-context"
+import { Play, Flame, Trophy, Heart, Shuffle, ChevronRight, Home, LayoutGrid, MessageSquare, User } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { TutorialChallenge } from "@/components/tutorial-challenge"
 import { apiClient } from "@/lib/api"
 
+// Keep all existing interfaces unchanged
 interface DashboardStats {
   user: {
     id: number
@@ -82,13 +79,8 @@ interface LeaderboardEntry {
   is_current_user: boolean
 }
 
-interface LeaderboardResponse {
-  success: boolean
-  data: LeaderboardEntry[]
-  current_user_rank: number
-}
-
 export function HomeDashboard() {
+  // Keep all existing state and logic unchanged
   const [showTutorial, setShowTutorial] = useState(false)
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
   const [availableChallenges, setAvailableChallenges] = useState<Challenge[]>([])
@@ -97,23 +89,21 @@ export function HomeDashboard() {
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeMode, setActiveMode] = useState(0)
 
-  // Ref to track if data has been loaded to prevent duplicate calls
   const hasLoadedData = useRef(false)
   const mountedRef = useRef(true)
 
-  const theme = useTheme()
   const { user, isAuthenticated, logout, isLoading: authLoading } = useAuth()
   const router = useRouter()
 
-  // Separate effect for authentication check
+  // Keep all existing useEffect hooks unchanged
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push("/")
     }
   }, [isAuthenticated, authLoading, router])
 
-  // Separate effect for data loading - only runs once when authenticated
   useEffect(() => {
     if (isAuthenticated && user && !hasLoadedData.current) {
       hasLoadedData.current = true
@@ -121,20 +111,19 @@ export function HomeDashboard() {
     }
   }, [isAuthenticated, user])
 
-  // Separate effect for tutorial status check - only after dashboard stats are loaded
   useEffect(() => {
     if (dashboardStats?.user && !dashboardStats.user.has_completed_tutorial) {
       setShowTutorial(true)
     }
   }, [dashboardStats])
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false
     }
   }, [])
 
+  // Keep all existing functions unchanged
   const loadDashboardData = async () => {
     if (!mountedRef.current) return
 
@@ -151,33 +140,25 @@ export function HomeDashboard() {
 
       if (!mountedRef.current) return
 
-      // Handle the nested response structure
       if (statsResponse.data?.success && statsResponse.data?.data) {
         setDashboardStats(statsResponse.data.data)
       }
       if (challengesResponse.data?.success && challengesResponse.data?.data) {
         setAvailableChallenges(challengesResponse.data.data)
       } else {
-        setAvailableChallenges([]) // Ensure it's always an array
+        setAvailableChallenges([])
       }
-      // Handle activity feed response - ensure it's always an array
       if (activityResponse.data) {
-        // Check if it's a nested structure like other APIs
         if (activityResponse.data.success && activityResponse.data.data) {
           setActivityFeed(Array.isArray(activityResponse.data.data) ? activityResponse.data.data : [])
-        }
-        // Check if it's a direct array
-        else if (Array.isArray(activityResponse.data)) {
+        } else if (Array.isArray(activityResponse.data)) {
           setActivityFeed(activityResponse.data)
-        }
-        // Fallback to empty array
-        else {
+        } else {
           setActivityFeed([])
         }
       } else {
         setActivityFeed([])
       }
-      // Handle the nested response structure for leaderboard
       if (leaderboardResponse.data?.success && leaderboardResponse.data?.data) {
         setLeaderboard(leaderboardResponse.data.data)
         setCurrentUserRank(leaderboardResponse.data.current_user_rank)
@@ -196,7 +177,6 @@ export function HomeDashboard() {
 
   const handleTutorialComplete = () => {
     setShowTutorial(false)
-    // Reset the flag to allow data reload after tutorial completion
     hasLoadedData.current = false
     loadDashboardData()
   }
@@ -204,7 +184,6 @@ export function HomeDashboard() {
   const joinChallenge = async (challengeId: string) => {
     try {
       await apiClient.joinChallenge(challengeId)
-      // Refresh challenges with proper nested structure handling
       const response = await apiClient.getAvailableChallenges()
       if (response.data?.success && response.data?.data && mountedRef.current) {
         setAvailableChallenges(response.data.data)
@@ -217,7 +196,6 @@ export function HomeDashboard() {
   const likeActivity = async (activityId: string) => {
     try {
       await apiClient.likeActivity(activityId)
-      // Update local state optimistically
       if (mountedRef.current) {
         setActivityFeed((prev) =>
           prev.map((item) =>
@@ -229,7 +207,6 @@ export function HomeDashboard() {
       }
     } catch (error) {
       console.error("Failed to like activity:", error)
-      // Revert optimistic update
       if (mountedRef.current) {
         setActivityFeed((prev) =>
           prev.map((item) =>
@@ -242,12 +219,13 @@ export function HomeDashboard() {
     }
   }
 
+  // Keep existing loading and error states
   if (authLoading || !isAuthenticated || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f13]">
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-white">Loading your arena...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="text-black">Loading your arena...</p>
         </div>
       </div>
     )
@@ -259,10 +237,10 @@ export function HomeDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f13]">
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-white">Loading dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black mx-auto mb-4"></div>
+          <p className="text-black">Loading dashboard...</p>
         </div>
       </div>
     )
@@ -270,15 +248,15 @@ export function HomeDashboard() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f13]">
+      <div className="flex min-h-screen items-center justify-center bg-white">
         <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
+          <p className="text-gray-600 mb-4">{error}</p>
           <Button
             onClick={() => {
               hasLoadedData.current = false
               loadDashboardData()
             }}
-            className="bg-primary text-white"
+            className="bg-black text-white hover:bg-gray-800"
           >
             Retry
           </Button>
@@ -289,321 +267,300 @@ export function HomeDashboard() {
 
   const xpProgress = dashboardStats ? (dashboardStats.user.current_xp / dashboardStats.user.xp_to_next_level) * 100 : 0
 
+  const modes = [
+    { name: "Fitness", icon: "💪", completed: 8, total: 8, category: "fitness" },
+    { name: "Yoga", icon: "🧘", completed: 5, total: 10, category: "yoga" },
+    { name: "Basketball", icon: "🏀", completed: 12, total: 15, category: "basketball" },
+  ]
+
+  const dailyQuest = {
+    target: "Complete 3 challenges",
+    progress: dashboardStats?.stats.challenges_completed || 0,
+    goal: 3,
+  }
+
   return (
-    <div className="flex min-h-screen flex-col bg-[#0f0f13]">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-[#1a1a22]/95 backdrop-blur-sm border-b border-gray-800">
-        <div className="container mx-auto px-4 py-4">
+    <div className="min-h-screen bg-white">
+      {/* Desktop Navigation - Top Bar */}
+      <div className="hidden md:block border-b border-gray-100">
+        <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* User Info */}
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Avatar className="h-12 w-12 border-2 border-primary">
-                  <AvatarImage src={dashboardStats?.user.avatar_url || "/placeholder.svg"} alt="User avatar" />
-                  <AvatarFallback className="bg-primary text-white">
-                    {dashboardStats?.user.name?.charAt(0)?.toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-1 -right-1 bg-primary text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
-                  {dashboardStats?.user.level || 1}
-                </div>
-              </div>
-              <div>
-                <h2 className="font-bold text-white text-lg">
-                  Welcome back, <span className="text-primary">{dashboardStats?.user.name}</span>!
-                </h2>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <span>
-                    Rank {dashboardStats?.user.global_rank ? `#${dashboardStats.user.global_rank}` : "Unranked"}
-                  </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <Flame className="h-3 w-3 text-primary" />
-                    {dashboardStats?.stats.current_streak || 0} day streak
-                  </span>
-                </div>
-              </div>
+            {/* Logo */}
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-black tracking-tight">
+                SPORTYFY<span className="text-gray-600">.LIVE</span>
+              </h1>
             </div>
 
-            {/* XP Progress */}
-            <div className="hidden md:flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm text-gray-400">Level Progress</p>
-                <p className="text-white font-medium">
-                  {dashboardStats?.user.current_xp || 0} / {dashboardStats?.user.xp_to_next_level || 3000} XP
-                </p>
-              </div>
-              <div className="w-32">
-                <Progress value={xpProgress} className="h-2" />
-              </div>
+            {/* Center Navigation */}
+            <div className="flex items-center space-x-8">
+              <button
+                onClick={() => router.push("/challenges")}
+                className="text-gray-600 hover:text-black transition-colors font-medium"
+              >
+                Challenges
+              </button>
+              <button
+                onClick={() => router.push("/skill-tree")}
+                className="text-gray-600 hover:text-black transition-colors font-medium"
+              >
+                Pathways
+              </button>
+              <button
+                onClick={() => router.push("/social")}
+                className="text-gray-600 hover:text-black transition-colors font-medium"
+              >
+                Social
+              </button>
+            </div>
+
+            {/* Right Side - User Info */}
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-600">Hi, {dashboardStats?.user.name}</span>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => router.push("/profile")}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-black hover:bg-gray-50 transition-colors font-medium"
+              >
+                Profile
+              </button>
             </div>
           </div>
         </div>
-      </header>
+      </div>
+
+      {/* Header */}
+      <div className="container mx-auto px-6 py-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-black">Welcome back, {dashboardStats?.user.name} 👋</h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="text-right">
+              <p className="text-sm text-gray-600">Level Progress</p>
+              <p className="text-black font-medium">
+                {dashboardStats?.user.current_xp || 0} / {dashboardStats?.user.xp_to_next_level || 3000} XP
+              </p>
+            </div>
+            <div className="w-32">
+              <Progress value={xpProgress} className="h-2 bg-gray-100" />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-6 space-y-6">
-        {/* Hero Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="container mx-auto px-6 space-y-6 pb-24 md:pb-6">
+        {/* Hero CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative overflow-hidden rounded-2xl bg-black text-white"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 to-black/40"></div>
+          <div className="relative p-8 text-center">
+            <div className="mb-6">
+              <Button
+                onClick={() => router.push("/challenges")}
+                size="lg"
+                className="bg-white text-black hover:bg-gray-100 text-lg px-8 py-4 rounded-xl font-semibold"
+              >
+                <Play className="h-6 w-6 mr-3" />
+                Start New Challenge
+              </Button>
+            </div>
+            <p className="text-gray-300">Pick a mode, train 30s, get instant feedback.</p>
+          </div>
+        </motion.div>
+
+        {/* Daily Quest */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-gray-50 rounded-xl p-4"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-black rounded-full flex items-center justify-center">
+                <Flame className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-black">Today's Quest: {dailyQuest.target}</p>
+                <p className="text-sm text-gray-600">
+                  {dailyQuest.progress}/{dailyQuest.goal} completed
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="w-12 h-12 relative">
+                <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#e5e7eb"
+                    strokeWidth="2"
+                  />
+                  <path
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                    fill="none"
+                    stroke="#000"
+                    strokeWidth="2"
+                    strokeDasharray={`${(dailyQuest.progress / dailyQuest.goal) * 100}, 100`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-xs font-bold">
+                    {Math.round((dailyQuest.progress / dailyQuest.goal) * 100)}%
+                  </span>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="bg-black text-white hover:bg-gray-800"
+                onClick={() => router.push("/challenges")}
+              >
+                Go!
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Mode Carousel */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          <h3 className="text-lg font-semibold text-black">Training Modes</h3>
+          <div className="flex space-x-4 overflow-x-auto pb-2">
+            {modes.map((mode, index) => (
+              <motion.div
+                key={mode.name}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setActiveMode(index)}
+                className={`flex-shrink-0 w-48 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  activeMode === index
+                    ? "border-black bg-black text-white"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-2">{mode.icon}</div>
+                  <h4 className="font-semibold mb-1">{mode.name}</h4>
+                  <p className={`text-sm ${activeMode === index ? "text-gray-300" : "text-gray-600"}`}>
+                    {mode.completed} / {mode.total} done
+                  </p>
+                  <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
+                    <div
+                      className={`h-1 rounded-full ${activeMode === index ? "bg-white" : "bg-black"}`}
+                      style={{ width: `${(mode.completed / mode.total) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Quick Play Tile */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          onClick={() => {
+            // Random challenge logic
+            if (availableChallenges.length > 0) {
+              const randomChallenge = availableChallenges[Math.floor(Math.random() * availableChallenges.length)]
+              joinChallenge(randomChallenge.id)
+            }
+          }}
+          className="bg-gradient-to-r from-gray-100 to-gray-50 rounded-xl p-6 cursor-pointer hover:from-gray-200 hover:to-gray-100 transition-all"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-black rounded-full flex items-center justify-center">
+                <Shuffle className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-black">Surprise Me!</h4>
+                <p className="text-gray-600">Not sure what to train? Tap me!</p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-gray-400" />
+          </div>
+        </motion.div>
+
+        {/* Recent Activity Strip */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="space-y-4"
+        >
+          <h3 className="text-lg font-semibold text-black">Recent Activity</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {activityFeed.slice(0, 3).map((activity, index) => (
+              <div key={activity.id} className="bg-gray-50 rounded-xl p-4">
+                <div className="flex items-center space-x-3 mb-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={activity.user.avatar || "/placeholder.svg"} />
+                    <AvatarFallback className="text-xs bg-black text-white">
+                      {activity.user.name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-black truncate">{activity.user.name}</p>
+                    <p className="text-xs text-gray-600">{activity.timestamp}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-800 mb-3">{activity.action}</p>
+                {activity.challenge && <p className="text-xs text-black font-medium mb-3">{activity.challenge}</p>}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => likeActivity(activity.id)}
+                    className={`flex items-center space-x-1 text-xs ${
+                      activity.isLiked ? "text-black" : "text-gray-500"
+                    } hover:text-black transition-colors`}
+                  >
+                    <Heart className={`h-3 w-3 ${activity.isLiked ? "fill-current" : ""}`} />
+                    <span>{activity.likes}</span>
+                  </button>
+                  <Button size="sm" variant="outline" className="text-xs">
+                    Retry
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Mobile Navigation - Bottom Bar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-3">
+        <div className="flex justify-around">
           {[
-            {
-              label: "Total XP",
-              value: dashboardStats?.stats.total_xp || 0,
-              icon: Zap,
-              color: "text-yellow-400",
-            },
-            {
-              label: "Badges",
-              value: dashboardStats?.stats.badges_count || 0,
-              icon: Award,
-              color: "text-purple-400",
-            },
-            {
-              label: "Challenges Won",
-              value: dashboardStats?.stats.challenges_won || 0,
-              icon: Trophy,
-              color: "text-primary",
-            },
-            {
-              label: "Global Rank",
-              value: dashboardStats?.user.global_rank ? `#${dashboardStats.user.global_rank}` : "Unranked",
-              icon: Crown,
-              color: "text-blue-400",
-            },
-          ].map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+            { icon: Home, label: "Home", path: "/dashboard", active: true },
+            { icon: LayoutGrid, label: "Discover", path: "/challenges" },
+            { icon: Trophy, label: "Challenges", path: "/my-challenges" },
+            { icon: MessageSquare, label: "Social", path: "/social" },
+            { icon: User, label: "Profile", path: "/profile" },
+          ].map((item) => (
+            <button
+              key={item.path}
+              onClick={() => router.push(item.path)}
+              className={`flex flex-col items-center space-y-1 py-2 px-3 rounded-lg transition-colors ${
+                item.active ? "text-black" : "text-gray-400 hover:text-gray-600"
+              }`}
             >
-              <Card className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-colors">
-                <CardContent className="p-4 text-center">
-                  <stat.icon className={`h-6 w-6 mx-auto mb-2 ${stat.color}`} />
-                  <p className="text-2xl font-bold text-white">{stat.value}</p>
-                  <p className="text-xs text-gray-400">{stat.label}</p>
-                </CardContent>
-              </Card>
-            </motion.div>
+              <item.icon className={`h-5 w-5 ${item.active ? "fill-current" : ""}`} />
+              <span className="text-xs font-medium">{item.label}</span>
+            </button>
           ))}
         </div>
-
-        {/* Quick Actions */}
-        <Card className="bg-gray-800/50 border-gray-700">
-          <CardContent className="p-6">
-            <h3 className="text-lg font-bold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {[
-                { label: "New Challenge", icon: Target, action: () => router.push("/challenges") },
-                { label: "View Progress", icon: TrendingUp, action: () => router.push("/profile") },
-                { label: "Leaderboards", icon: Crown, action: () => router.push("/leaderboards") },
-                { label: "Invite Friends", icon: Users, action: () => {} },
-              ].map((action) => (
-                <Button
-                  key={action.label}
-                  onClick={action.action}
-                  variant="outline"
-                  className="h-16 flex-col gap-2 border-gray-600 hover:border-primary hover:bg-primary/10 text-white bg-gray-700/40"
-                >
-                  <action.icon className="h-5 w-5 text-primary" />
-                  <span className="text-xs font-medium">{action.label}</span>
-                </Button>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Available Challenges */}
-          <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-xl font-bold text-white">Available Challenges</h3>
-            <div className="grid gap-4">
-              {availableChallenges.length > 0 ? (
-                availableChallenges.slice(0, 6).map((challenge) => (
-                  <motion.div key={challenge.id} whileHover={{ scale: 1.02 }} className="group">
-                    <Card className="bg-gray-800/50 border-gray-700 hover:border-primary/50 transition-all">
-                      <CardContent className="p-4">
-                        <div className="flex gap-4">
-                          <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-gray-700">
-                            <img
-                              src={challenge.thumbnail || "/placeholder.svg"}
-                              alt={challenge.title}
-                              className="w-full h-full object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors" />
-                            <Play className="absolute inset-0 m-auto h-6 w-6 text-white opacity-70" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4 className="font-semibold text-white group-hover:text-primary transition-colors">
-                                {challenge.title}
-                              </h4>
-                              <Badge className="bg-primary text-white">+{challenge.xp} XP</Badge>
-                            </div>
-                            <div className="flex items-center gap-2 mb-3">
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${
-                                  challenge.difficulty === "Beginner"
-                                    ? "border-green-500 text-green-400"
-                                    : challenge.difficulty === "Intermediate"
-                                      ? "border-yellow-500 text-yellow-400"
-                                      : "border-red-500 text-red-400"
-                                }`}
-                              >
-                                {challenge.difficulty}
-                              </Badge>
-                              <span className="text-xs text-gray-400">{challenge.category}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-4 text-xs text-gray-400">
-                                <span className="flex items-center gap-1">
-                                  <Users className="h-3 w-3" />
-                                  {challenge.participants}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {new Date(challenge.deadline).toLocaleDateString()}
-                                </span>
-                              </div>
-                              {challenge.isJoined ? (
-                                <Badge variant="outline" className="border-primary text-primary">
-                                  {challenge.status === "completed" ? "Completed" : "Joined"}
-                                </Badge>
-                              ) : (
-                                <Button
-                                  onClick={() => joinChallenge(challenge.id)}
-                                  size="sm"
-                                  className="bg-primary text-white hover:opacity-90"
-                                >
-                                  Join
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))
-              ) : (
-                <Card className="bg-gray-800/50 border-gray-700">
-                  <CardContent className="p-8 text-center">
-                    <Target className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <h4 className="text-lg font-medium text-white mb-2">No Challenges Available</h4>
-                    <p className="text-gray-400 text-sm">
-                      New challenges are coming soon! Check back later for exciting opportunities to test your skills.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Activity Feed */}
-            <Card className="bg-gray-800/50 border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg text-white">Live Activity</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="max-h-80 overflow-y-auto">
-                  {Array.isArray(activityFeed) && activityFeed.length > 0 ? (
-                    activityFeed.slice(0, 10).map((activity) => (
-                      <div key={activity.id} className="p-4 border-b border-gray-700 last:border-b-0">
-                        <div className="flex items-start gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={activity.user.avatar || "/placeholder.svg"} />
-                            <AvatarFallback className="text-xs">{activity.user.name.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm text-white">
-                              <span className="font-medium">{activity.user.name}</span>
-                              <Badge className="ml-2 text-xs bg-primary/20 text-primary">L{activity.user.level}</Badge>
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">{activity.action}</p>
-                            {activity.challenge && <p className="text-xs text-primary mt-1">{activity.challenge}</p>}
-                            <div className="flex items-center gap-2 mt-2">
-                              <button
-                                onClick={() => likeActivity(activity.id)}
-                                className={`flex items-center gap-1 text-xs ${
-                                  activity.isLiked ? "text-red-400" : "text-gray-400"
-                                } hover:text-red-400 transition-colors`}
-                              >
-                                <Heart className={`h-3 w-3 ${activity.isLiked ? "fill-current" : ""}`} />
-                                {activity.likes}
-                              </button>
-                              <span className="text-xs text-gray-500">{activity.timestamp}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-4 text-center text-gray-400">
-                      <p className="text-sm">No recent activity</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Weekly Leaderboard */}
-            <Card className="bg-gray-800/50 border-gray-700">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg text-white flex items-center gap-2">
-                  <Crown className="h-5 w-5 text-yellow-400" />
-                  Weekly Leaders
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {leaderboard.length > 0 ? (
-                  leaderboard.slice(0, 5).map((entry, index) => (
-                    <div key={entry.user.id} className="p-4 border-b border-gray-700 last:border-b-0">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            index === 0
-                              ? "bg-yellow-400 text-black"
-                              : index === 1
-                                ? "bg-gray-400 text-black"
-                                : index === 2
-                                  ? "bg-orange-400 text-black"
-                                  : "bg-gray-600 text-white"
-                          }`}
-                        >
-                          {entry.rank}
-                        </div>
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={entry.user.avatar_url || "/placeholder.svg"} />
-                          <AvatarFallback className="text-xs">{entry.user.name.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-white">{entry.user.name}</p>
-                            {entry.is_current_user && <Badge className="text-xs bg-primary/20 text-primary">You</Badge>}
-                          </div>
-                          <p className="text-xs text-gray-400">
-                            {entry.total_xp.toLocaleString()} XP • {entry.challenges_won} wins
-                          </p>
-                          <p className="text-xs text-gray-500">+{entry.weekly_xp} XP this week</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="p-4 text-center text-gray-400">
-                    <p className="text-sm">No leaderboard data available</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </main>
-
-      <NavigationBar />
+      </div>
     </div>
   )
 }

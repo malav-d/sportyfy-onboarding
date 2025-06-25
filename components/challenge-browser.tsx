@@ -1,14 +1,13 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NavigationBar } from "@/components/navigation-bar"
-import { ArrowLeft, Filter, Search } from "lucide-react"
 import { useTheme } from "@/components/theme-context"
 
 interface Challenge {
@@ -45,8 +44,8 @@ const challenges: Challenge[] = [
   },
   {
     id: 3,
-    title: "Free Throw Mastery",
-    category: "Basketball",
+    title: "Core Strength",
+    category: "Fitness",
     difficulty: "Beginner",
     xp: 180,
     participants: 3421,
@@ -55,8 +54,8 @@ const challenges: Challenge[] = [
   },
   {
     id: 4,
-    title: "Penalty Kick Precision",
-    category: "Soccer",
+    title: "Yoga Flow",
+    category: "Yoga",
     difficulty: "Intermediate",
     xp: 220,
     participants: 1876,
@@ -75,8 +74,8 @@ const challenges: Challenge[] = [
   },
   {
     id: 6,
-    title: "Ball Control Mastery",
-    category: "Soccer",
+    title: "Balance Poses",
+    category: "Yoga",
     difficulty: "Advanced",
     xp: 320,
     participants: 1432,
@@ -95,8 +94,8 @@ const challenges: Challenge[] = [
   },
   {
     id: 8,
-    title: "Serve Accuracy",
-    category: "Tennis",
+    title: "Shooting Drills",
+    category: "Basketball",
     difficulty: "Intermediate",
     xp: 230,
     participants: 987,
@@ -110,6 +109,7 @@ export function ChallengeBrowser() {
   const [activeCategory, setActiveCategory] = useState("All")
   const [activeSort, setActiveSort] = useState("Popular")
   const theme = useTheme()
+  const router = useRouter()
 
   const filteredChallenges = challenges.filter((challenge) => {
     if (activeCategory !== "All" && challenge.category !== activeCategory) {
@@ -135,40 +135,73 @@ export function ChallengeBrowser() {
   })
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0f0f13]">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-[#1a1a22] p-4 shadow-sm">
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 text-white hover:bg-[#0f0f13]/50">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              className="pl-9 bg-[#0f0f13] border-0 text-white"
-              placeholder="Search challenges"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+    <div className="flex min-h-screen flex-col bg-white">
+      {/* Desktop Navigation - Top Bar */}
+      <div className="hidden md:block border-b border-gray-100">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center">
+              <h1 className="text-2xl font-bold text-black tracking-tight">
+                SPORTYFY<span className="text-gray-600">.LIVE</span>
+              </h1>
+            </div>
+
+            {/* Center Navigation */}
+            <div className="flex items-center space-x-8">
+              <button
+                onClick={() => router.push("/challenges")}
+                className="text-black font-medium border-b-2 border-black pb-1"
+              >
+                Challenges
+              </button>
+              <button
+                onClick={() => router.push("/skill-tree")}
+                className="text-gray-600 hover:text-black transition-colors font-medium"
+              >
+                Pathways
+              </button>
+              <button
+                onClick={() => router.push("/social")}
+                className="text-gray-600 hover:text-black transition-colors font-medium"
+              >
+                Social
+              </button>
+              <button
+                onClick={() => router.push("/profile")}
+                className="text-gray-600 hover:text-black transition-colors font-medium"
+              >
+                Profile
+              </button>
+            </div>
+
+            {/* Right Side - User Info */}
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-600">Hi, User</span>
+              <span className="text-gray-400">|</span>
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-black hover:bg-gray-50 transition-colors font-medium"
+              >
+                Dashboard
+              </button>
+            </div>
           </div>
-          <Button variant="outline" size="icon" className="h-9 w-9 shrink-0 border-0 bg-[#0f0f13] text-white">
-            <Filter className="h-5 w-5" />
-          </Button>
         </div>
-      </header>
+      </div>
 
       {/* Category Tabs */}
-      <div className="sticky top-[73px] z-10 bg-[#1a1a22] px-4 shadow-sm">
+      <div className="sticky top-[73px] z-10 bg-white px-4 shadow-sm">
         <div className="mx-auto max-w-5xl">
           <div className="scrollbar-hide -mx-1 flex overflow-x-auto py-3">
-            {["All", "Basketball", "Soccer", "Fitness", "Tennis", "Volleyball"].map((category) => (
+            {["All", "Fitness", "Yoga", "Basketball"].map((category) => (
               <Button
                 key={category}
                 variant={activeCategory === category ? "default" : "outline"}
                 className={`mx-1 shrink-0 ${
                   activeCategory === category
-                    ? `bg-[${theme.colors.primary}]`
-                    : "border-[#0f0f13] bg-[#0f0f13] text-gray-300 hover:text-white"
+                    ? `bg-gray-900 text-white`
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-800"
                 }`}
                 onClick={() => setActiveCategory(category)}
               >
@@ -180,31 +213,31 @@ export function ChallengeBrowser() {
       </div>
 
       {/* Sort Options */}
-      <div className="bg-[#1a1a22] px-4 pb-2 pt-1 shadow-sm">
+      <div className="bg-white px-4 pb-2 pt-1 shadow-sm">
         <div className="mx-auto max-w-5xl">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-400">{filteredChallenges.length} challenges found</p>
+            <p className="text-sm text-gray-500">{filteredChallenges.length} challenges found</p>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">Sort by:</span>
+              <span className="text-sm text-gray-500">Sort by:</span>
               <Tabs defaultValue="Popular" className="w-[180px]">
-                <TabsList className="h-8 bg-[#0f0f13]">
+                <TabsList className="h-8 bg-gray-100">
                   <TabsTrigger
                     value="Popular"
-                    className={`h-6 text-xs data-[state=active]:bg-[${theme.colors.primary}] data-[state=active]:text-white`}
+                    className={`h-6 text-xs data-[state=active]:bg-gray-900 data-[state=active]:text-white`}
                     onClick={() => setActiveSort("Popular")}
                   >
                     Popular
                   </TabsTrigger>
                   <TabsTrigger
                     value="New"
-                    className={`h-6 text-xs data-[state=active]:bg-[${theme.colors.primary}] data-[state=active]:text-white`}
+                    className={`h-6 text-xs data-[state=active]:bg-gray-900 data-[state=active]:text-white`}
                     onClick={() => setActiveSort("New")}
                   >
                     New
                   </TabsTrigger>
                   <TabsTrigger
                     value="XP"
-                    className={`h-6 text-xs data-[state=active]:bg-[${theme.colors.primary}] data-[state=active]:text-white`}
+                    className={`h-6 text-xs data-[state=active]:bg-gray-900 data-[state=active]:text-white`}
                     onClick={() => setActiveSort("XP")}
                   >
                     XP
@@ -224,7 +257,7 @@ export function ChallengeBrowser() {
               {sortedChallenges.map((challenge) => (
                 <Card
                   key={challenge.id}
-                  className="overflow-hidden bg-[#1a1a22] border-0 transition-transform hover:scale-[1.02]"
+                  className="overflow-hidden bg-white border border-gray-200 transition-transform hover:scale-[1.02]"
                 >
                   <div className="relative h-32">
                     <img
@@ -236,45 +269,39 @@ export function ChallengeBrowser() {
                     <div className="absolute bottom-0 left-0 right-0 p-3">
                       <div className="flex items-center justify-between">
                         <Badge className="bg-white/20 text-white backdrop-blur-sm">{challenge.category}</Badge>
-                        {challenge.isNew && <Badge className={`bg-[${theme.colors.secondary}] text-white`}>New</Badge>}
+                        {challenge.isNew && <Badge className="bg-green-500 text-white">New</Badge>}
                       </div>
                     </div>
                   </div>
                   <CardContent className="p-3">
-                    <h4 className="font-poppins font-medium">{challenge.title}</h4>
+                    <h4 className="font-poppins font-medium text-gray-800">{challenge.title}</h4>
                     <div className="mt-2 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={
-                            challenge.difficulty === "Beginner"
-                              ? `border-[${theme.colors.secondary}] text-[${theme.colors.secondary}]`
-                              : challenge.difficulty === "Intermediate"
-                                ? `border-[${theme.colors.primary}] text-[${theme.colors.primary}]`
-                                : `border-[${theme.colors.primary}] text-[${theme.colors.primary}]`
-                          }
-                        >
+                        <Badge variant="outline" className="border-gray-400 text-gray-600">
                           {challenge.difficulty}
                         </Badge>
                         <div className="flex items-center gap-1">
                           <Avatar className="h-4 w-4">
-                            <AvatarFallback className="text-[8px] bg-[#0f0f13]">U</AvatarFallback>
+                            <AvatarFallback className="text-[8px] bg-gray-200 text-gray-700">U</AvatarFallback>
                           </Avatar>
-                          <span className="text-xs text-gray-400">{challenge.participants}</span>
+                          <span className="text-xs text-gray-500">{challenge.participants}</span>
                         </div>
                       </div>
-                      <Badge className={`bg-[${theme.colors.primary}]`}>+{challenge.xp} XP</Badge>
+                      <div className="flex flex-col items-end">
+                        <Badge className="bg-gray-900 text-white">+{challenge.xp} XP</Badge>
+                        <Badge className="bg-green-500 text-white mt-1">AI-Verified</Badge>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
           ) : (
-            <div className="flex h-40 flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#1a1a22] p-6 text-center">
-              <p className="text-gray-400">No challenges found</p>
+            <div className="flex h-40 flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 p-6 text-center">
+              <p className="text-gray-500">No challenges found</p>
               <Button
                 variant="link"
-                className={`text-[${theme.colors.secondary}]`}
+                className="text-blue-500"
                 onClick={() => {
                   setSearchQuery("")
                   setActiveCategory("All")
