@@ -13,37 +13,14 @@ import * as poseDetection from "@tensorflow-models/pose-detection"
 interface ChallengeData {
   id: string
   title: string
-  description: string
   duration_limit: number
-  points_reward: number
-  xp_reward: number
-  badge_reward: string
-  video_url: string
-  video_example_url: string
-  category: string
-  starts_at: string
-  ends_at: string | null
-  is_paid: boolean
-  entry_fee: string
-  is_tutorial: boolean
-  difficulty: { key: string; label: string }
-  challenge_type: { key: string; label: string }
   scoring_method: { key: "max_reps_in_time" | "first_n_valid_reps"; label: string }
   requirements: {
-    camera_pose: { key: string; label: string }
     min_valid_reps: number
-    duration_seconds: number
-    environment_tips: Array<{ label: string }>
-  }
-  verification_rules: {
-    pose: string
-    down_knee_angle: { max: number; tol: number }
-    up_leg_straight: { min: number; tol: number }
     track_invalid_reps: boolean
   }
   metrics_spec: {
-    primary: { key: string; unit: string; label: string }
-    secondary: { key: string; unit: string; label: string }
+    primary: { label: string }
   }
 }
 
@@ -86,6 +63,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
   const {
     timeLeft,
+    isRunning: timerIsRunning,
     start: startTimer,
     stop: stopTimer,
     progress,
@@ -111,7 +89,14 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   }, [])
 
   useEffect(() => {
-    if (!isRecording || !debugData || !canvasRef.current || !videoRef.current) return
+    if (!isRecording || !debugData || !canvasRef.current || !videoRef.current) {
+      const canvas = canvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext("2d")
+        ctx?.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
 
     const canvas = canvasRef.current
     const video = videoRef.current
@@ -175,7 +160,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     destroyDetector()
   }
 
-  const startRecording = () => {
+  const startRecordingFlow = () => {
     if (!cameraReady || !videoRef.current || !isModelReady) return
     setCountdown(3)
     const countdownInterval = setInterval(() => {
@@ -213,9 +198,8 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   const handleCancel = () => {
     if (isRecording) {
       stopRecording()
-    } else {
-      onCancel()
     }
+    onCancel()
   }
 
   const getLoadingMessage = () => {
@@ -257,9 +241,9 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
           </button>
           <Badge className="bg-green-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
             <Target className="h-4 w-4 mr-1" />
-            {validReps} Valid Squats
+            {validReps} {challengeData.metrics_spec.primary.label}
           </Badge>
-          {challengeData.verification_rules.track_invalid_reps && invalidReps > 0 && (
+          {challengeData.requirements.track_invalid_reps && invalidReps > 0 && (
             <Badge className="bg-red-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
               <AlertTriangle className="h-4 w-4 mr-1" />
               {invalidReps} Invalid
@@ -293,7 +277,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
         </div>
 
         <div className="absolute bottom-8 left-6 right-6">
-          {isRecording && (
+          {timerIsRunning && (
             <div className="flex justify-center mb-6">
               <div className="relative w-24 h-24">
                 <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
@@ -319,7 +303,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
           {!isRecording && !recordingComplete && countdown === 0 && (
             <div className="space-y-4">
               <Button
-                onClick={startRecording}
+                onClick={startRecordingFlow}
                 disabled={!cameraReady || !isModelReady}
                 className="w-full bg-white text-black hover:bg-gray-100 text-xl py-6 rounded-full font-bold transition-all"
                 size="lg"

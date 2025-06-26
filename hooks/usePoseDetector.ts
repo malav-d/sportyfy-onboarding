@@ -133,7 +133,6 @@ export const usePoseDetector = () => {
           currentStateRef.current = "bottom"
           bottomTimeRef.current = timestamp
         } else if (hipMovement < -HIP_MOVEMENT_THRESHOLD) {
-          // User started going up too early
           currentStateRef.current = "ready"
         }
         break
