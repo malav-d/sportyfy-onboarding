@@ -2,11 +2,7 @@
 
 import { useState, useRef, useCallback } from "react"
 
-// Remove the direct imports and replace with dynamic loading
-// import { Pose, Results } from '@mediapipe/pose'
-// import { Camera } from '@mediapipe/camera_utils'
-
-// Add dynamic types
+// Dynamic types for MediaPipe
 interface Results {
   poseLandmarks?: Array<{ x: number; y: number; z: number }>
 }
@@ -23,54 +19,62 @@ interface Camera {
   stop: () => void
 }
 
-interface DetectorConfig {
-  repThreshold: number
-  angleThreshold: number
-  side: "left" | "right"
-  exercise: "squat" | "bicepCurl"
+export interface DetectorConfig {
+  pose: string
+  rules: Record<string, any>
+  minValidReps: number | null
+  scoringKey: "max_reps_in_time" | "first_n_valid_reps"
 }
+
+type RepState = "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid"
 
 interface RepDetectionState {
   inRep: boolean
   bottomReached: boolean
   topReached: boolean
   invalidRepStarted: boolean
+  currentState: RepState
 }
 
 interface SmoothedAngles {
   leftKnee: number | null
   rightKnee: number | null
-  leftHip: number | null
-  rightHip: number | null
+  leftElbow: number | null
+  rightElbow: number | null
 }
 
-const useRepDetector = () => {
+export const useRepDetector = () => {
   const [validReps, setValidReps] = useState(0)
   const [invalidReps, setInvalidReps] = useState(0)
-  const [repState, setRepState] = useState<"ready" | "detecting" | "complete">("ready")
+  const [repState, setRepState] = useState<RepState>("ready")
+
   const poseRef = useRef<Pose | null>(null)
   const cameraRef = useRef<Camera | null>(null)
   const configRef = useRef<DetectorConfig | null>(null)
+  const earlyCompleteCallbackRef = useRef<(() => void) | null>(null)
+
   const repDetectionRef = useRef<RepDetectionState>({
     inRep: false,
     bottomReached: false,
     topReached: true,
     invalidRepStarted: false,
+    currentState: "ready",
   })
+
   const smoothedAnglesRef = useRef<SmoothedAngles>({
     leftKnee: null,
     rightKnee: null,
-    leftHip: null,
-    rightHip: null,
+    leftElbow: null,
+    rightElbow: null,
   })
 
   const onResults = useCallback((results: Results) => {
     if (!results.poseLandmarks || !configRef.current) return
 
-    const { repThreshold, angleThreshold, side, exercise } = configRef.current
+    const { pose, rules } = configRef.current
     const { poseLandmarks } = results
 
-    // Function to calculate angle
+    // Function to calculate angle between three points
     const calculateAngle = (a: any, b: any, c: any) => {
       const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x)
       let angle = Math.abs((radians * 180.0) / Math.PI)
@@ -78,8 +82,8 @@ const useRepDetector = () => {
       return angle
     }
 
-    // Function to smooth angles
-    const smoothAngle = (newAngle: number, existingAngle: number | null, smoothingFactor = 0.8) => {
+    // Function to smooth angles using exponential moving average
+    const smoothAngle = (newAngle: number, existingAngle: number | null, smoothingFactor = 0.7) => {
       if (existingAngle === null) {
         return newAngle
       }
@@ -87,104 +91,100 @@ const useRepDetector = () => {
     }
 
     // Squat Detection Logic
-    if (exercise === "squat") {
-      const leftHip = poseLandmarks[11]
-      const leftKnee = poseLandmarks[13]
-      const leftAnkle = poseLandmarks[15]
+    if (pose === "squat") {
+      const leftHip = poseLandmarks[23] // Left hip
+      const leftKnee = poseLandmarks[25] // Left knee
+      const leftAnkle = poseLandmarks[27] // Left ankle
 
-      const rightHip = poseLandmarks[12]
-      const rightKnee = poseLandmarks[14]
-      const rightAnkle = poseLandmarks[16]
+      const rightHip = poseLandmarks[24] // Right hip
+      const rightKnee = poseLandmarks[26] // Right knee
+      const rightAnkle = poseLandmarks[28] // Right ankle
 
       let leftKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle)
       let rightKneeAngle = calculateAngle(rightHip, rightKnee, rightAnkle)
 
+      // Smooth the angles
       smoothedAnglesRef.current = {
+        ...smoothedAnglesRef.current,
         leftKnee: smoothAngle(leftKneeAngle, smoothedAnglesRef.current.leftKnee),
         rightKnee: smoothAngle(rightKneeAngle, smoothedAnglesRef.current.rightKnee),
-        leftHip: null,
-        rightHip: null,
       }
 
       leftKneeAngle = smoothedAnglesRef.current.leftKnee!
       rightKneeAngle = smoothedAnglesRef.current.rightKnee!
 
-      const isGoodForm = leftKneeAngle > 60 && rightKneeAngle > 60
+      const downKneeAngle = rules.down_knee_angle || { max: 90, tol: 10 }
+      const upLegStraight = rules.up_leg_straight || { min: 160, tol: 10 }
 
-      if (repDetectionRef.current.inRep) {
-        if (leftKneeAngle > angleThreshold && rightKneeAngle > angleThreshold) {
-          repDetectionRef.current.topReached = true
-        }
+      const isAtBottom = leftKneeAngle <= downKneeAngle.max && rightKneeAngle <= downKneeAngle.max
+      const isAtTop = leftKneeAngle >= upLegStraight.min && rightKneeAngle >= upLegStraight.min
+      const isGoodForm = leftKneeAngle > 60 && rightKneeAngle > 60 // Basic form check
 
-        if (repDetectionRef.current.bottomReached && repDetectionRef.current.topReached) {
-          setValidReps((prev) => prev + 1)
-          repDetectionRef.current = {
-            inRep: false,
-            bottomReached: false,
-            topReached: true,
-            invalidRepStarted: false,
+      // State machine logic
+      const currentDetection = repDetectionRef.current
+
+      if (currentDetection.currentState === "ready" && isAtTop) {
+        // Ready to start a rep
+        setRepState("ready")
+      } else if (currentDetection.currentState === "ready" && !isAtTop) {
+        // Starting to descend
+        currentDetection.currentState = "descending"
+        currentDetection.inRep = true
+        setRepState("descending")
+      } else if (currentDetection.currentState === "descending" && isAtBottom) {
+        // Reached bottom position
+        currentDetection.currentState = "bottom"
+        currentDetection.bottomReached = true
+        setRepState("bottom")
+      } else if (currentDetection.currentState === "bottom" && !isAtBottom && isGoodForm) {
+        // Starting to ascend with good form
+        currentDetection.currentState = "ascending"
+        setRepState("ascending")
+      } else if (currentDetection.currentState === "ascending" && isAtTop) {
+        // Completed a valid rep
+        currentDetection.currentState = "complete"
+        setRepState("complete")
+        setValidReps((prev) => {
+          const newCount = prev + 1
+
+          // Check for early completion
+          if (
+            configRef.current?.scoringKey === "first_n_valid_reps" &&
+            configRef.current?.minValidReps &&
+            newCount >= configRef.current.minValidReps &&
+            earlyCompleteCallbackRef.current
+          ) {
+            setTimeout(() => earlyCompleteCallbackRef.current?.(), 100)
           }
-        }
-      } else {
-        if (leftKneeAngle < angleThreshold && rightKneeAngle < angleThreshold) {
-          repDetectionRef.current.bottomReached = true
-        }
 
-        if (repDetectionRef.current.bottomReached && isGoodForm) {
-          repDetectionRef.current.inRep = true
-        }
-      }
+          return newCount
+        })
 
-      if (!isGoodForm && !repDetectionRef.current.invalidRepStarted && repDetectionRef.current.bottomReached) {
-        setInvalidReps((prev) => prev + 1)
-        repDetectionRef.current.invalidRepStarted = true
-      }
-    }
+        // Reset for next rep
+        setTimeout(() => {
+          currentDetection.currentState = "ready"
+          currentDetection.inRep = false
+          currentDetection.bottomReached = false
+          currentDetection.topReached = true
+          currentDetection.invalidRepStarted = false
+          setRepState("ready")
+        }, 500)
+      } else if (currentDetection.inRep && !isGoodForm && !currentDetection.invalidRepStarted) {
+        // Invalid rep detected
+        if (rules.track_invalid_reps) {
+          setInvalidReps((prev) => prev + 1)
+          currentDetection.invalidRepStarted = true
+          setRepState("invalid")
 
-    // Bicep Curl Detection Logic
-    if (exercise === "bicepCurl") {
-      const leftShoulder = poseLandmarks[11]
-      const leftElbow = poseLandmarks[13]
-      const leftWrist = poseLandmarks[15]
-
-      const rightShoulder = poseLandmarks[12]
-      const rightElbow = poseLandmarks[14]
-      const rightWrist = poseLandmarks[16]
-
-      let leftElbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist)
-      let rightElbowAngle = calculateAngle(rightShoulder, rightElbow, rightWrist)
-
-      smoothedAnglesRef.current = {
-        leftKnee: null,
-        rightKnee: null,
-        leftHip: smoothAngle(leftElbowAngle, smoothedAnglesRef.current.leftHip),
-        rightHip: smoothAngle(rightElbowAngle, smoothedAnglesRef.current.rightHip),
-      }
-
-      leftElbowAngle = smoothedAnglesRef.current.leftHip!
-      rightElbowAngle = smoothedAnglesRef.current.rightHip!
-
-      if (side === "left") {
-        if (repDetectionRef.current.inRep) {
-          if (leftElbowAngle > repThreshold) {
-            setValidReps((prev) => prev + 1)
-            repDetectionRef.current.inRep = false
-          }
-        } else {
-          if (leftElbowAngle < angleThreshold) {
-            repDetectionRef.current.inRep = true
-          }
-        }
-      } else if (side === "right") {
-        if (repDetectionRef.current.inRep) {
-          if (rightElbowAngle > repThreshold) {
-            setValidReps((prev) => prev + 1)
-            repDetectionRef.current.inRep = false
-          }
-        } else {
-          if (rightElbowAngle < angleThreshold) {
-            repDetectionRef.current.inRep = true
-          }
+          // Reset after invalid rep
+          setTimeout(() => {
+            currentDetection.currentState = "ready"
+            currentDetection.inRep = false
+            currentDetection.bottomReached = false
+            currentDetection.topReached = true
+            currentDetection.invalidRepStarted = false
+            setRepState("ready")
+          }, 1000)
         }
       }
     }
@@ -196,7 +196,26 @@ const useRepDetector = () => {
         configRef.current = cfg
 
         // Load MediaPipe libraries dynamically
-        await import("@/lib/mediapipe-loader").then(({ loadMediaPipeLibraries }) => loadMediaPipeLibraries())
+        const script1 = document.createElement("script")
+        script1.src = "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+        document.head.appendChild(script1)
+
+        const script2 = document.createElement("script")
+        script2.src = "https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        document.head.appendChild(script2)
+
+        const script3 = document.createElement("script")
+        script3.src = "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        document.head.appendChild(script3)
+
+        const script4 = document.createElement("script")
+        script4.src = "https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"
+        document.head.appendChild(script4)
+
+        // Wait for scripts to load
+        await new Promise((resolve) => {
+          script4.onload = resolve
+        })
 
         // Initialize MediaPipe Pose using global objects
         const { Pose, Camera } = window as any
@@ -242,12 +261,13 @@ const useRepDetector = () => {
           bottomReached: false,
           topReached: true,
           invalidRepStarted: false,
+          currentState: "ready",
         }
         smoothedAnglesRef.current = {
           leftKnee: null,
           rightKnee: null,
-          leftHip: null,
-          rightHip: null,
+          leftElbow: null,
+          rightElbow: null,
         }
       } catch (error) {
         console.error("Failed to initialize pose detector:", error)
@@ -257,7 +277,7 @@ const useRepDetector = () => {
     [onResults],
   )
 
-  const stopDetector = useCallback(() => {
+  const destroyDetector = useCallback(() => {
     if (cameraRef.current) {
       cameraRef.current.stop()
       cameraRef.current = null
@@ -268,12 +288,20 @@ const useRepDetector = () => {
     }
   }, [])
 
+  const onEarlyComplete = useCallback((callback: () => void) => {
+    earlyCompleteCallbackRef.current = callback
+    return () => {
+      earlyCompleteCallbackRef.current = null
+    }
+  }, [])
+
   return {
+    initDetector,
     validReps,
     invalidReps,
     repState,
-    initDetector,
-    stopDetector,
+    destroyDetector,
+    onEarlyComplete,
   }
 }
 

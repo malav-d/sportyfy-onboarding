@@ -103,14 +103,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     scoringKey: challengeData.scoring_method.key as "max_reps_in_time" | "first_n_valid_reps",
   }
 
-  const {
-    initDetector,
-    validReps,
-    invalidReps,
-    repState,
-    destroyDetector,
-    onEarlyComplete: earlyCompleteHandler,
-  } = useRepDetector()
+  const { initDetector, validReps, invalidReps, repState, destroyDetector, onEarlyComplete } = useRepDetector()
 
   const handleTimerExpire = useCallback(() => {
     if (isRecording) {
@@ -142,16 +135,14 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
   // Set up early completion callback
   useEffect(() => {
-    const onEarlyComplete = () => {
+    const cleanup = onEarlyComplete(() => {
       if (isRecording) {
         stopRecording()
       }
-    }
+    })
 
-    return () => {
-      earlyCompleteHandler(onEarlyComplete)
-    }
-  }, [isRecording, earlyCompleteHandler])
+    return cleanup
+  }, [isRecording, onEarlyComplete])
 
   // Initialize camera
   useEffect(() => {
