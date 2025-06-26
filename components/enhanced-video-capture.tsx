@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
-import { X, Target, Camera, AlertTriangle } from "lucide-react"
+import { X, Target, Camera, AlertTriangle, Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useMediaPipePoseDetector } from "@/hooks/useMediaPipePoseDetector"
@@ -31,12 +31,14 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(0)
+  const [isLoadingModel, setIsLoadingModel] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
   const {
+    loadModel,
     startDetector,
     stopDetector,
     validReps,
@@ -85,6 +87,12 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }
   }
 
+  const handleLoadModel = async () => {
+    setIsLoadingModel(true)
+    await loadModel()
+    setIsLoadingModel(false)
+  }
+
   const startRecordingFlow = () => {
     if (!cameraReady || !videoRef.current || !canvasRef.current || !isModelReady) return
     setCountdown(3)
@@ -102,11 +110,48 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }, 1000)
   }
 
-  const getLoadingMessage = () => {
-    if (modelError) return "Error loading AI"
-    if (!cameraReady) return "Initializing camera..."
-    if (!isModelReady) return "Loading AI model..."
-    return "Ready"
+  const renderMainButton = () => {
+    if (modelError || cameraError) {
+      return (
+        <div className="text-center">
+          <Button disabled className="w-full bg-red-500/50 text-white text-xl py-6 rounded-full font-bold">
+            <AlertTriangle className="h-6 w-6 mr-2" />
+            Error
+          </Button>
+          <p className="text-red-400 text-xs mt-2">{modelError || cameraError}</p>
+        </div>
+      )
+    }
+
+    if (!isModelReady) {
+      return (
+        <Button
+          onClick={handleLoadModel}
+          disabled={!cameraReady || isLoadingModel}
+          className="w-full bg-white text-black text-xl py-6 rounded-full font-bold"
+        >
+          {isLoadingModel ? (
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black" />
+          ) : (
+            <>
+              <Download className="h-6 w-6 mr-2" />
+              Load AI Model
+            </>
+          )}
+        </Button>
+      )
+    }
+
+    return (
+      <Button
+        onClick={startRecordingFlow}
+        disabled={!cameraReady}
+        className="w-full bg-white text-black text-xl py-6 rounded-full font-bold"
+      >
+        <Camera className="h-6 w-6 mr-2" />
+        Start Challenge
+      </Button>
+    )
   }
 
   return (
@@ -160,24 +205,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
         </div>
 
         <div className="flex justify-center">
-          {!isRecording && countdown === 0 && (
-            <div className="w-full max-w-xs text-center">
-              <Button
-                onClick={startRecordingFlow}
-                disabled={!cameraReady || !isModelReady || !!modelError || !!cameraError}
-                className="w-full bg-white text-black text-xl py-6 rounded-full font-bold disabled:bg-gray-500"
-              >
-                <Camera className="h-6 w-6 mr-2" />
-                {isModelReady ? "Start" : getLoadingMessage()}
-              </Button>
-              {(modelError || cameraError) && (
-                <p className="text-red-400 text-xs mt-2 flex items-center justify-center gap-1">
-                  <AlertTriangle className="h-4 w-4" />
-                  {modelError || cameraError}
-                </p>
-              )}
-            </div>
-          )}
+          {!isRecording && countdown === 0 && <div className="w-full max-w-xs">{renderMainButton()}</div>}
         </div>
       </div>
     </div>

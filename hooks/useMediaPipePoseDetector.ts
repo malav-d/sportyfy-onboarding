@@ -1,16 +1,7 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
-import { useScript } from "./useScript"
-
-// Define types for MediaPipe classes that will be on the window object
-declare global {
-  interface Window {
-    PoseLandmarker: any
-    FilesetResolver: any
-    DrawingUtils: any
-  }
-}
+import { useState, useRef, useCallback } from "react"
+import type { PoseLandmarker, DrawingUtils, Landmark } from "@mediapipe/tasks-vision"
 
 // --- Configuration ---
 const UP_ANGLE_THRESHOLD = 160
@@ -27,55 +18,47 @@ export interface DebugData {
 }
 
 export const useMediaPipePoseDetector = () => {
-  const scriptStatus = useScript("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.js")
-  const [poseLandmarker, setPoseLandmarker] = useState<any | null>(null)
+  const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null)
+  const [isModelReady, setIsModelReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [validReps, setValidReps] = useState(0)
   const [repState, setRepState] = useState<RepState>("ready")
   const [debugData, setDebugData] = useState<DebugData | null>(null)
-  const [isModelReady, setIsModelReady] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const lastRepTimestamp = useRef(0)
   const animationFrameId = useRef<number | null>(null)
-  const drawingUtilsRef = useRef<any | null>(null)
+  const drawingUtilsRef = useRef<DrawingUtils | null>(null)
 
-  useEffect(() => {
-    if (scriptStatus === "error") {
-      setError("Failed to load the AI library. Please check your network connection.")
+  const loadModel = useCallback(async () => {
+    setError(null)
+    try {
+      const { PoseLandmarker, FilesetResolver, DrawingUtils } = await import("@mediapipe/tasks-vision")
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm",
+      )
+      const landmarker = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numPoses: 1,
+      })
+      setPoseLandmarker(landmarker)
+      drawingUtilsRef.current = new DrawingUtils(null as any) // Context set per frame
+      setIsModelReady(true)
+      console.log("Pose Landmarker model loaded successfully.")
+    } catch (e) {
+      const errorMessage = e instanceof Error ? e.message : "Unknown error"
+      console.error("Error loading Pose Landmarker model:", e)
+      setError(`Failed to load AI model. ${errorMessage}`)
     }
-    if (scriptStatus !== "ready" || poseLandmarker) {
-      return
-    }
+  }, [])
 
-    const createPoseLandmarker = async () => {
-      try {
-        const vision = await window.FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm",
-        )
-        const landmarker = await window.PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numPoses: 1,
-        })
-        setPoseLandmarker(landmarker)
-        setIsModelReady(true)
-        console.log("Pose Landmarker model loaded.")
-      } catch (e) {
-        const errorMessage = e instanceof Error ? e.message : "Unknown error"
-        console.error("Error loading Pose Landmarker model:", errorMessage, e)
-        setError(`Error initializing AI model: ${errorMessage}`)
-      }
-    }
-    createPoseLandmarker()
-  }, [scriptStatus, poseLandmarker])
-
-  const calculateAngle = (p1: any, p2: any, p3: any) => {
+  const calculateAngle = (p1: Landmark, p2: Landmark, p3: Landmark) => {
     const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x)
     let angle = Math.abs((radians * 180.0) / Math.PI)
     if (angle > 180.0) angle = 360 - angle
@@ -83,7 +66,7 @@ export const useMediaPipePoseDetector = () => {
   }
 
   const predictWebcam = useCallback(() => {
-    if (!poseLandmarker || !videoRef.current || !canvasRef.current) {
+    if (!poseLandmarker || !videoRef.current || !canvasRef.current || !drawingUtilsRef.current) {
       return
     }
 
@@ -92,10 +75,6 @@ export const useMediaPipePoseDetector = () => {
     const canvasCtx = canvas.getContext("2d")
     if (!canvasCtx) return
 
-    if (!drawingUtilsRef.current) {
-      drawingUtilsRef.current = new window.DrawingUtils(canvasCtx)
-    }
-
     if (video.readyState < 2) {
       animationFrameId.current = requestAnimationFrame(predictWebcam)
       return
@@ -103,6 +82,7 @@ export const useMediaPipePoseDetector = () => {
 
     canvas.width = video.clientWidth
     canvas.height = video.clientHeight
+    ;(drawingUtilsRef.current as any).canvasCtx = canvasCtx
 
     const startTimeMs = performance.now()
     const results = poseLandmarker.detectForVideo(video, startTimeMs)
@@ -113,7 +93,7 @@ export const useMediaPipePoseDetector = () => {
     if (results.landmarks && results.landmarks.length > 0) {
       const landmarks = results.landmarks[0]
       drawingUtilsRef.current.drawLandmarks(landmarks, { color: "#5c3bfe", lineWidth: 2 })
-      drawingUtilsRef.current.drawConnectors(landmarks, window.PoseLandmarker.POSE_CONNECTIONS, {
+      drawingUtilsRef.current.drawConnectors(landmarks, (window as any).PoseLandmarker?.POSE_CONNECTIONS || [], {
         color: "#FFFFFF",
         lineWidth: 2,
       })
@@ -179,5 +159,5 @@ export const useMediaPipePoseDetector = () => {
     }
   }, [])
 
-  return { startDetector, stopDetector, validReps, debugData, isModelReady, error }
+  return { loadModel, startDetector, stopDetector, validReps, debugData, isModelReady, error }
 }
