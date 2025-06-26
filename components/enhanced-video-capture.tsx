@@ -9,6 +9,7 @@ import { usePoseDetector, type DetectorConfig } from "@/hooks/usePoseDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
 import * as poseDetection from "@tensorflow-models/pose-detection"
 
+// This interface should match the structure of your actual challenge data
 interface ChallengeData {
   id: string
   title: string
@@ -25,52 +26,24 @@ interface ChallengeData {
   is_paid: boolean
   entry_fee: string
   is_tutorial: boolean
-  difficulty: {
-    key: string
-    label: string
-  }
-  challenge_type: {
-    key: string
-    label: string
-  }
-  scoring_method: {
-    key: string
-    label: string
-  }
+  difficulty: { key: string; label: string }
+  challenge_type: { key: string; label: string }
+  scoring_method: { key: "max_reps_in_time" | "first_n_valid_reps"; label: string }
   requirements: {
-    camera_pose: {
-      key: string
-      label: string
-    }
+    camera_pose: { key: string; label: string }
     min_valid_reps: number
     duration_seconds: number
-    environment_tips: Array<{
-      label: string
-    }>
+    environment_tips: Array<{ label: string }>
   }
   verification_rules: {
     pose: string
-    down_knee_angle: {
-      max: number
-      tol: number
-    }
-    up_leg_straight: {
-      min: number
-      tol: number
-    }
+    down_knee_angle: { max: number; tol: number }
+    up_leg_straight: { min: number; tol: number }
     track_invalid_reps: boolean
   }
   metrics_spec: {
-    primary: {
-      key: string
-      unit: string
-      label: string
-    }
-    secondary: {
-      key: string
-      unit: string
-      label: string
-    }
+    primary: { key: string; unit: string; label: string }
+    secondary: { key: string; unit: string; label: string }
   }
 }
 
@@ -99,7 +72,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
   const detectorConfig: DetectorConfig = {
     minValidReps: challengeData.requirements?.min_valid_reps ?? null,
-    scoringKey: challengeData.scoring_method.key as "max_reps_in_time" | "first_n_valid_reps",
+    scoringKey: challengeData.scoring_method.key,
   }
 
   const { initDetector, destroyDetector, onEarlyComplete, validReps, invalidReps, repState, debugData, isModelReady } =
@@ -138,7 +111,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   }, [])
 
   useEffect(() => {
-    if (!debugData || !canvasRef.current || !videoRef.current) return
+    if (!isRecording || !debugData || !canvasRef.current || !videoRef.current) return
 
     const canvas = canvasRef.current
     const video = videoRef.current
@@ -147,7 +120,6 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
     canvas.width = video.clientWidth
     canvas.height = video.clientHeight
-
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     const scaleX = canvas.width / video.videoWidth
@@ -175,7 +147,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
         ctx.fill()
       }
     })
-  }, [debugData])
+  }, [debugData, isRecording])
 
   const initializeCamera = async () => {
     setCameraError(null)
@@ -225,7 +197,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     startTimer()
   }
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     setIsRecording(false)
     stopTimer()
     destroyDetector()
@@ -236,11 +208,14 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       elapsed: challengeData.duration_limit - timeLeft,
     }
     setTimeout(() => onComplete(result), 2000)
-  }
+  }, [validReps, invalidReps, timeLeft, challengeData.duration_limit, onComplete, stopTimer, destroyDetector])
 
   const handleCancel = () => {
-    if (isRecording) stopRecording()
-    onCancel()
+    if (isRecording) {
+      stopRecording()
+    } else {
+      onCancel()
+    }
   }
 
   const getLoadingMessage = () => {
@@ -255,7 +230,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
 
       {isRecording && debugData && (
-        <div className="absolute top-6 left-6 bg-black/50 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 font-mono">
+        <div className="absolute top-6 left-6 bg-black/50 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 font-mono shadow-lg">
           <h3 className="font-bold text-sm mb-2 border-b border-white/20 pb-1">Live Analysis</h3>
           <div>
             State: <span className="font-bold text-yellow-300">{debugData.state.toUpperCase()}</span>
@@ -354,7 +329,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               </Button>
             </div>
           )}
-          {(!cameraReady || !isModelReady) && !isRecording && (
+          {(!cameraReady || !isModelReady) && !isRecording && !recordingComplete && (
             <div className="text-center">
               <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full inline-flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />

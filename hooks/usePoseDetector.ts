@@ -11,7 +11,7 @@ const MIN_REP_MS = 800 // A rep must take at least 800ms
 const BOTTOM_DWELL_MS = 100 // Must be in the 'bottom' position for at least 100ms
 const UP_ANGLE_THRESHOLD = 160 // Angle for standing straight
 const DOWN_ANGLE_THRESHOLD = 100 // Angle for being in a squat
-const HIP_MOVEMENT_THRESHOLD = 0.01 // Min normalized hip movement to detect motion
+const HIP_MOVEMENT_THRESHOLD = 0.005 // Min normalized hip movement to detect motion
 
 export interface DetectorConfig {
   minValidReps: number | null
@@ -50,6 +50,7 @@ export const usePoseDetector = () => {
   // Initialize the TensorFlow.js model
   const initModel = useCallback(async () => {
     try {
+      await tf.setBackend("webgl")
       await tf.ready()
       const detectorConfig = {
         modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
@@ -64,11 +65,14 @@ export const usePoseDetector = () => {
 
   useEffect(() => {
     initModel()
-  }, [initModel])
+    return () => {
+      model?.dispose()
+    }
+  }, [initModel, model])
 
   const detectPose = useCallback(async () => {
     if (!model || !videoRef.current || !configRef.current) {
-      if (model) animationFrameRef.current = requestAnimationFrame(detectPose)
+      if (model && animationFrameRef.current === null) animationFrameRef.current = requestAnimationFrame(detectPose)
       return
     }
 
@@ -84,13 +88,11 @@ export const usePoseDetector = () => {
 
     const pose = poses[0]
     if (!pose || pose.score! < 0.4) {
-      // No person detected or low confidence
       setDebugData((prev) => (prev ? { ...prev, keypoints: [] } : null))
       animationFrameRef.current = requestAnimationFrame(detectPose)
       return
     }
 
-    // Get keypoints for squat analysis
     const leftHip = getKeypoint(pose.keypoints, "left_hip")
     const rightHip = getKeypoint(pose.keypoints, "right_hip")
     const leftKnee = getKeypoint(pose.keypoints, "left_knee")
@@ -103,7 +105,6 @@ export const usePoseDetector = () => {
       return
     }
 
-    // Calculate angles and hip position
     const leftKneeAngle = angleBetween(leftHip, leftKnee, leftAnkle)
     const rightKneeAngle = angleBetween(rightHip, rightKnee, rightAnkle)
     const avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2
@@ -111,8 +112,9 @@ export const usePoseDetector = () => {
     const hipCenter = {
       x: (leftHip.x + rightHip.x) / 2,
       y: (leftHip.y + rightHip.y) / 2,
+      score: (leftHip.score! + rightHip.score!) / 2,
+      name: "hip_center",
     }
-
     const hipMovement = calculateHipMovement(hipCenter, previousHipRef.current)
     previousHipRef.current = hipCenter
 
@@ -120,21 +122,21 @@ export const usePoseDetector = () => {
     const timeSinceLastRep = timestamp - lastRepTimeRef.current
     const currentState = currentStateRef.current
 
-    // --- Rep Counting State Machine ---
     switch (currentState) {
       case "ready":
         if (avgKneeAngle < UP_ANGLE_THRESHOLD - 10 && hipMovement > HIP_MOVEMENT_THRESHOLD) {
           currentStateRef.current = "descending"
         }
         break
-
       case "descending":
         if (avgKneeAngle < DOWN_ANGLE_THRESHOLD) {
           currentStateRef.current = "bottom"
           bottomTimeRef.current = timestamp
+        } else if (hipMovement < -HIP_MOVEMENT_THRESHOLD) {
+          // User started going up too early
+          currentStateRef.current = "ready"
         }
         break
-
       case "bottom":
         const timeAtBottom = timestamp - bottomTimeRef.current
         if (timeAtBottom > BOTTOM_DWELL_MS) {
@@ -143,11 +145,9 @@ export const usePoseDetector = () => {
           }
         }
         break
-
       case "ascending":
         if (avgKneeAngle > UP_ANGLE_THRESHOLD) {
           if (timeSinceLastRep > MIN_REP_MS) {
-            // Valid Rep!
             setValidReps((prev) => {
               const newCount = prev + 1
               if (
@@ -165,7 +165,6 @@ export const usePoseDetector = () => {
               currentStateRef.current = "ready"
             }, 500)
           } else {
-            // Rep was too fast
             setInvalidReps((prev) => prev + 1)
             currentStateRef.current = "invalid"
             setTimeout(() => {
@@ -176,7 +175,6 @@ export const usePoseDetector = () => {
         break
       case "complete":
       case "invalid":
-        // Handled by timeouts
         break
     }
 
@@ -201,17 +199,14 @@ export const usePoseDetector = () => {
       }
       videoRef.current = videoEl
       configRef.current = cfg
-
-      // Reset state
       setValidReps(0)
       setInvalidReps(0)
       setRepState("ready")
       currentStateRef.current = "ready"
       previousHipRef.current = null
       lastRepTimeRef.current = performance.now()
-
-      // Start detection loop
-      detectPose()
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
+      animationFrameRef.current = requestAnimationFrame(detectPose)
     },
     [model, detectPose],
   )
@@ -221,8 +216,6 @@ export const usePoseDetector = () => {
       cancelAnimationFrame(animationFrameRef.current)
       animationFrameRef.current = null
     }
-    videoRef.current = null
-    configRef.current = null
   }, [])
 
   const onEarlyComplete = useCallback((callback: () => void) => {

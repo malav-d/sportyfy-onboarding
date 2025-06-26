@@ -1,10 +1,14 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronRight, ChevronLeft, Check, Clock, Trophy, Target, X, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api"
 import { EnhancedVideoCapture } from "./enhanced-video-capture"
+import { ChallengePrep } from "@/components/challenge-prep"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { CheckCircle, XCircle } from "lucide-react"
 
 interface TutorialChallengeProps {
   onComplete: () => void
@@ -77,7 +81,55 @@ interface ChallengeData {
 
 type OnboardingStep = "welcome" | "prep" | "recording" | "feedback" | "failed"
 
+// Mock challenge data for the tutorial
+const tutorialChallenge = {
+  id: "tutorial-squat-1",
+  title: "First Squat Challenge",
+  description: "Complete 3 perfect squats to learn how SportSkill works.",
+  duration_limit: 30,
+  points_reward: 100,
+  xp_reward: 50,
+  badge_reward: "first_squat_badge",
+  video_url: "",
+  video_example_url: "",
+  category: "Fitness",
+  starts_at: new Date().toISOString(),
+  ends_at: null,
+  is_paid: false,
+  entry_fee: "0",
+  is_tutorial: true,
+  difficulty: { key: "easy", label: "Easy" },
+  challenge_type: { key: "reps", label: "Repetitions" },
+  scoring_method: { key: "first_n_valid_reps" as const, label: "First N Valid Reps" },
+  requirements: {
+    camera_pose: { key: "front", label: "Front Facing" },
+    min_valid_reps: 3,
+    duration_seconds: 30,
+    environment_tips: [
+      { label: "Ensure your whole body is visible." },
+      { label: "Have good lighting from the front." },
+    ],
+  },
+  verification_rules: {
+    pose: "squat",
+    down_knee_angle: { max: 100, tol: 10 },
+    up_leg_straight: { min: 160, tol: 10 },
+    track_invalid_reps: true,
+  },
+  metrics_spec: {
+    primary: { key: "reps", unit: "", label: "Valid Squats" },
+    secondary: { key: "time", unit: "s", label: "Time" },
+  },
+}
+
+interface RecordingResult {
+  validReps: number
+  invalidReps: number
+  elapsed: number
+}
+
 export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
+  const router = useRouter()
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome")
   const [prepFrame, setPrepFrame] = useState(0)
   const [repCount, setRepCount] = useState(0)
@@ -87,6 +139,8 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [toastVisible, setToastVisible] = useState(true)
+  const [step, setStep] = useState<"prep" | "recording" | "complete" | "failed">("prep")
+  const [result, setResult] = useState<RecordingResult | null>(null)
 
   // Calculate success threshold from requirements
   const getSuccessThreshold = () => {
@@ -166,6 +220,23 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
     setShowToast(false)
     setToastVisible(true)
     setCurrentStep("recording")
+    setResult(null)
+    setStep("recording")
+  }
+
+  const handleChallengeComplete = (res: RecordingResult) => {
+    setResult(res)
+    if (res.validReps >= (tutorialChallenge.requirements.min_valid_reps || 3)) {
+      setStep("complete")
+      console.log("Challenge completed successfully:", res)
+    } else {
+      setStep("failed")
+      console.log("Challenge failed:", res)
+    }
+  }
+
+  const handleContinueToDashboard = () => {
+    router.push("/dashboard")
   }
 
   // Loading state
@@ -736,6 +807,77 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
         {currentStep === "failed" && (
           <motion.div key="failed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
             {renderFailedScreen()}
+          </motion.div>
+        )}
+
+        {step === "prep" && (
+          <motion.div key="prep" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            <ChallengePrep challenge={tutorialChallenge} onStart={() => setStep("recording")} />
+          </motion.div>
+        )}
+
+        {step === "recording" && (
+          <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            <EnhancedVideoCapture
+              challengeData={tutorialChallenge}
+              onComplete={handleChallengeComplete}
+              onCancel={() => setStep("prep")}
+            />
+          </motion.div>
+        )}
+
+        {step === "complete" && (
+          <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+              <Card className="w-full max-w-md bg-gray-800 border-purple-500">
+                <CardHeader className="text-center">
+                  <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
+                  <CardTitle className="text-3xl font-bold mt-4">Challenge Complete!</CardTitle>
+                  <CardDescription className="text-gray-400">Great job! You've mastered the squat.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center space-y-4">
+                  <div className="text-lg">
+                    You completed <span className="font-bold text-purple-400">{result?.validReps}</span> valid squats.
+                  </div>
+                  <Button onClick={handleContinueToDashboard} className="w-full bg-purple-600 hover:bg-purple-700">
+                    Continue to Dashboard
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
+        )}
+
+        {step === "failed" && (
+          <motion.div key="failed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+              <Card className="w-full max-w-md bg-gray-800 border-red-500">
+                <CardHeader className="text-center">
+                  <XCircle className="mx-auto h-16 w-16 text-red-500" />
+                  <CardTitle className="text-3xl font-bold mt-4">Challenge Failed</CardTitle>
+                  <CardDescription className="text-gray-400">Don't give up! Every attempt is progress.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-center space-y-4">
+                  <div className="text-lg">
+                    You completed <span className="font-bold text-red-400">{result?.validReps}</span> out of{" "}
+                    <span className="font-bold text-gray-300">{tutorialChallenge.requirements.min_valid_reps}</span>{" "}
+                    required squats.
+                  </div>
+                  <div className="flex gap-4">
+                    <Button
+                      onClick={handleTryAgain}
+                      variant="outline"
+                      className="w-full text-white border-gray-600 hover:bg-gray-700 hover:text-white"
+                    >
+                      Try Again
+                    </Button>
+                    <Button onClick={handleContinueToDashboard} className="w-full bg-purple-600 hover:bg-purple-700">
+                      Continue to Dashboard
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,38 +1,42 @@
-// Pose math utilities for accurate rep detection using TensorFlow.js keypoints
+import type { Keypoint } from "@tensorflow-models/pose-detection"
 
-// A Keypoint contains x, y, z coordinates and a confidence score.
-interface Keypoint {
-  x: number
-  y: number
-  z?: number
-  score?: number
-  name?: string
-}
+/**
+ * Calculates the angle in degrees between three points (p1, p2, p3),
+ * where p2 is the vertex.
+ */
+export function angleBetween(p1: Keypoint, p2: Keypoint, p3: Keypoint): number {
+  if (!p1 || !p2 || !p3) return 0
+  const y = p3.y - p2.y
+  const x = p3.x - p2.x
+  const theta = Math.atan2(y, x)
 
-// Calculates the angle between three keypoints in degrees.
-export function angleBetween(a: Keypoint, b: Keypoint, c: Keypoint): number {
-  if (!a || !b || !c) return 0
+  const y1 = p1.y - p2.y
+  const x1 = p1.x - p2.x
+  const theta1 = Math.atan2(y1, x1)
 
-  const angleRad = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x)
-  let angleDeg = Math.abs((angleRad * 180) / Math.PI)
-
-  if (angleDeg > 180) {
-    angleDeg = 360 - angleDeg
+  let angle = (theta1 - theta) * (180 / Math.PI)
+  if (angle < 0) {
+    angle += 360
   }
-  return angleDeg
+  if (angle > 180) {
+    angle = 360 - angle
+  }
+  return angle
 }
 
-// Calculates the vertical movement of the hip center.
-// A positive value means moving down, negative means moving up.
-export function calculateHipMovement(currentHip: Keypoint, previousHip?: Keypoint): number {
-  if (!currentHip || !previousHip) return 0
-
-  // We use the 'y' coordinate. In screen space, a larger 'y' is lower.
-  const deltaY = currentHip.y - previousHip.y
-  return deltaY
-}
-
-// Helper to get a specific keypoint from the pose data by name.
+/**
+ * Finds a keypoint by name from the keypoints array.
+ */
 export function getKeypoint(keypoints: Keypoint[], name: string): Keypoint | undefined {
   return keypoints.find((kp) => kp.name === name)
+}
+
+/**
+ * Calculates the normalized vertical hip movement between frames.
+ * A positive value means moving down, negative means moving up.
+ */
+export function calculateHipMovement(currentHip: Keypoint, previousHip: Keypoint | null): number {
+  if (!previousHip || !currentHip) return 0
+  // We only care about vertical (y-axis) movement for squats
+  return currentHip.y - previousHip.y
 }
