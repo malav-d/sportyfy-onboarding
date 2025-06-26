@@ -1,6 +1,5 @@
 "use client"
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -8,83 +7,11 @@ import { EnhancedVideoCapture } from "./enhanced-video-capture"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CheckCircle, XCircle } from "lucide-react"
 
-interface TutorialChallengeProps {
-  onComplete: () => void
-}
-
-interface ChallengeData {
-  id: string
-  title: string
-  description: string
-  duration_limit: number
-  points_reward: number
-  xp_reward: number
-  badge_reward: string
-  video_url: string
-  video_example_url: string
-  category: string
-  starts_at: string
-  ends_at: string | null
-  is_paid: boolean
-  entry_fee: string
-  is_tutorial: boolean
-  difficulty: {
-    key: string
-    label: string
-  }
-  challenge_type: {
-    key: string
-    label: string
-  }
-  scoring_method: {
-    key: string
-    label: string
-  }
-  requirements: {
-    camera_pose: {
-      key: string
-      label: string
-    }
-    min_valid_reps: number
-    duration_seconds: number
-    environment_tips: Array<{
-      label: string
-    }>
-  }
-  verification_rules: {
-    pose: string
-    down_knee_angle: {
-      max: number
-      tol: number
-    }
-    up_leg_straight: {
-      min: number
-      tol: number
-    }
-    track_invalid_reps: boolean
-  }
-  metrics_spec: {
-    primary: {
-      key: string
-      unit: string
-      label: string
-    }
-    secondary: {
-      key: string
-      unit: string
-      label: string
-    }
-  }
-}
-
-type OnboardingStep = "welcome" | "prep" | "recording" | "feedback" | "failed"
-
 // Using a static mock for the tutorial to ensure consistency and avoid API errors.
 const tutorialChallenge = {
-  id: "tutorial-squat-1",
   title: "First Squat Challenge",
   duration_limit: 30,
-  scoring_method: { key: "first_n_valid_reps" as const, label: "First N Valid Reps" },
+  scoring_method: { key: "first_n_valid_reps" as const },
   requirements: {
     min_valid_reps: 3,
     track_invalid_reps: true,
@@ -101,7 +28,6 @@ interface RecordingResult {
 }
 
 export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
-  const router = useRouter()
   const [flowState, setFlowState] = useState<"prep" | "recording" | "complete" | "failed">("prep")
   const [result, setResult] = useState<RecordingResult | null>(null)
 
@@ -158,7 +84,7 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
         {flowState === "recording" && (
           <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <EnhancedVideoCapture
-              challengeData={tutorialChallenge as any} // Cast as any to match complex type
+              challengeData={tutorialChallenge as any} // Cast to match expected complex type
               onComplete={handleChallengeComplete}
               onCancel={() => setFlowState("prep")}
             />

@@ -11,10 +11,9 @@ import * as poseDetection from "@tensorflow-models/pose-detection"
 
 // This interface should match the structure of your actual challenge data
 interface ChallengeData {
-  id: string
   title: string
   duration_limit: number
-  scoring_method: { key: "max_reps_in_time" | "first_n_valid_reps"; label: string }
+  scoring_method: { key: "max_reps_in_time" | "first_n_valid_reps" }
   requirements: {
     min_valid_reps: number
     track_invalid_reps: boolean
@@ -55,11 +54,18 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   const { initDetector, destroyDetector, onEarlyComplete, validReps, invalidReps, repState, debugData, isModelReady } =
     usePoseDetector()
 
-  const handleTimerExpire = useCallback(() => {
-    if (isRecording) {
-      stopRecording()
+  const stopRecording = useCallback(() => {
+    setIsRecording(false)
+    // stopTimer is called inside useCountdownTimer's onExpire
+    destroyDetector()
+    setRecordingComplete(true)
+    const result: RecordingResult = {
+      validReps,
+      invalidReps,
+      elapsed: challengeData.duration_limit - (timeLeft || 0),
     }
-  }, [isRecording])
+    setTimeout(() => onComplete(result), 2000)
+  }, [validReps, invalidReps, challengeData.duration_limit, onComplete, destroyDetector])
 
   const {
     timeLeft,
@@ -69,7 +75,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     progress,
   } = useCountdownTimer({
     duration: challengeData.duration_limit,
-    onExpire: handleTimerExpire,
+    onExpire: stopRecording,
   })
 
   useEffect(() => {
@@ -79,7 +85,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       }
     })
     return cleanup
-  }, [isRecording, onEarlyComplete])
+  }, [isRecording, onEarlyComplete, stopRecording])
 
   useEffect(() => {
     initializeCamera()
@@ -182,21 +188,9 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     startTimer()
   }
 
-  const stopRecording = useCallback(() => {
-    setIsRecording(false)
-    stopTimer()
-    destroyDetector()
-    setRecordingComplete(true)
-    const result: RecordingResult = {
-      validReps,
-      invalidReps,
-      elapsed: challengeData.duration_limit - timeLeft,
-    }
-    setTimeout(() => onComplete(result), 2000)
-  }, [validReps, invalidReps, timeLeft, challengeData.duration_limit, onComplete, stopTimer, destroyDetector])
-
   const handleCancel = () => {
     if (isRecording) {
+      stopTimer()
       stopRecording()
     }
     onCancel()

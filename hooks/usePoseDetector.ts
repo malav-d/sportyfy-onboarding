@@ -151,7 +151,7 @@ export const usePoseDetector = () => {
               const newCount = prev + 1
               if (
                 configRef.current?.scoringKey === "first_n_valid_reps" &&
-                configRef.current?.minValidReps &&
+                configRef.current?.minValidRps &&
                 newCount >= configRef.current.minValidReps
               ) {
                 earlyCompleteCallbackRef.current?.()
