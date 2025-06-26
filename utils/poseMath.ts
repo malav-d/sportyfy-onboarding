@@ -7,56 +7,39 @@ const keypointHistory: KeypointHistory = {}
 const SMOOTHING_FACTOR = 0.7
 const HISTORY_LENGTH = 5
 
-export function smoothKeypoints(landmarks: any[]) {
-  if (!landmarks || landmarks.length === 0) {
-    return {
-      leftHip: { x: 0, y: 0 },
-      leftKnee: { x: 0, y: 0 },
-      leftAnkle: { x: 0, y: 0 },
-      rightHip: { x: 0, y: 0 },
-      rightKnee: { x: 0, y: 0 },
-      rightAnkle: { x: 0, y: 0 },
-      hipCenter: { x: 0, y: 0 },
-      hipPrev: null,
+// EMA (Exponential Moving Average) buffer for smoothing keypoints
+const emaBuffer: { [key: number]: { x: number; y: number; z: number } } = {}
+
+/**
+ * Smooths keypoints using a simple Exponential Moving Average.
+ * This helps to reduce jitter from the raw pose detection output.
+ * @param kpts The raw keypoints array from MediaPipe.
+ * @returns The smoothed keypoints array.
+ */
+export function smoothKeypoints(kpts: any[]): any[] {
+  if (!kpts) return []
+  const alpha = 0.6 // Smoothing factor. Higher value = less smoothing, more responsive.
+
+  const smoothedKpts = kpts.map((pt, i) => {
+    const prev = emaBuffer[i] ?? pt
+    const sm = {
+      ...pt,
+      x: alpha * pt.x + (1 - alpha) * prev.x,
+      y: alpha * pt.y + (1 - alpha) * prev.y,
+      z: alpha * pt.z + (1 - alpha) * prev.z,
     }
+    emaBuffer[i] = { x: sm.x, y: sm.y, z: sm.z }
+    return sm
+  })
+
+  // Add a reference to the previous hip position for displacement calculation
+  const rightHip = smoothedKpts[24]
+  if (rightHip) {
+    ;(smoothedKpts as any).__prevHipY = (emaBuffer as any).__currentHipY ?? rightHip.y * 100
+    ;(emaBuffer as any).__currentHipY = rightHip.y * 100
   }
 
-  // MediaPipe pose landmark indices
-  const leftHip = landmarks[23] || { x: 0, y: 0 }
-  const leftKnee = landmarks[25] || { x: 0, y: 0 }
-  const leftAnkle = landmarks[27] || { x: 0, y: 0 }
-  const rightHip = landmarks[24] || { x: 0, y: 0 }
-  const rightKnee = landmarks[26] || { x: 0, y: 0 }
-  const rightAnkle = landmarks[28] || { x: 0, y: 0 }
-
-  // Calculate hip center
-  const hipCenter = {
-    x: (leftHip.x + rightHip.x) / 2,
-    y: (leftHip.y + rightHip.y) / 2,
-  }
-
-  // Store hip history for movement calculation
-  if (!keypointHistory.hipCenter) {
-    keypointHistory.hipCenter = []
-  }
-  keypointHistory.hipCenter.push(hipCenter)
-  if (keypointHistory.hipCenter.length > HISTORY_LENGTH) {
-    keypointHistory.hipCenter.shift()
-  }
-
-  const hipPrev =
-    keypointHistory.hipCenter.length > 1 ? keypointHistory.hipCenter[keypointHistory.hipCenter.length - 2] : null
-
-  return {
-    leftHip,
-    leftKnee,
-    leftAnkle,
-    rightHip,
-    rightKnee,
-    rightAnkle,
-    hipCenter,
-    hipPrev,
-  }
+  return smoothedKpts
 }
 
 export function angleBetween(a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }) {
@@ -65,6 +48,32 @@ export function angleBetween(a: { x: number; y: number }, b: { x: number; y: num
   let angle = Math.abs((radians * 180.0) / Math.PI)
   angle = angle > 180.0 ? 360 - angle : angle
   return angle
+}
+
+/**
+ * Calculates the angle between three points (a, b, c), with 'b' as the vertex.
+ * @param a The first point.
+ * @param b The vertex point.
+ * @param c The third point.
+ * @returns The angle in degrees.
+ */
+export function angleABC(a: any, b: any, c: any): number {
+  if (!a || !b || !c) return 0
+
+  const ab = { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
+  const cb = { x: c.x - b.x, y: c.y - b.y, z: c.z - b.z }
+
+  const dot = ab.x * cb.x + ab.y * cb.y + ab.z * cb.z
+  const magA = Math.hypot(ab.x, ab.y, ab.z)
+  const magB = Math.hypot(cb.x, cb.y, cb.z)
+
+  const cosTheta = dot / (magA * magB)
+
+  // Ensure the value is within the valid range for acos to avoid NaN
+  if (cosTheta < -1) return 180
+  if (cosTheta > 1) return 0
+
+  return Math.acos(cosTheta) * (180 / Math.PI)
 }
 
 export function calculateHipMovement(current: { x: number; y: number }, previous: { x: number; y: number } | null) {
@@ -80,5 +89,8 @@ export function calculateHipMovement(current: { x: number; y: number }, previous
 export function resetSmoothingState() {
   Object.keys(keypointHistory).forEach((key) => {
     keypointHistory[key] = []
+  })
+  Object.keys(emaBuffer).forEach((key) => {
+    delete emaBuffer[Number(key)]
   })
 }
