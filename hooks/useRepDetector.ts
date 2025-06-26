@@ -1,141 +1,130 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
+import { smoothKeypoints, angleBetween, calculateHipMovement, resetSmoothingState } from "@/utils/poseMath"
+import { debugOverlay } from "@/utils/debugOverlay"
 
 export interface DetectorConfig {
   pose: string
   rules: Record<string, any>
   minValidReps: number | null
   scoringKey: "max_reps_in_time" | "first_n_valid_reps"
+  debug?: boolean
 }
 
-type RepState = "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid"
+type RepState = "ARMED" | "UP" | "DOWN" | "INVALID"
 
-interface RepDetectionState {
-  inRep: boolean
-  bottomReached: boolean
-  topReached: boolean
-  invalidRepStarted: boolean
-  currentState: RepState
-  lastValidTime: number
-}
+// Tunables for accuracy
+const MIN_REP_MS = 1200 // Minimum 1.2 seconds per rep (50 reps/min max)
+const BOTTOM_DWELL_MS = 300 // Must stay at bottom for 300ms
+const FRAMES_FOR_STATE = 4 // Need 4 consecutive frames to change state
+const HIP_MOVE_MIN_CM = 8 // Minimum hip movement to confirm rep
 
 export const useRepDetector = () => {
   const [validReps, setValidReps] = useState(0)
   const [invalidReps, setInvalidReps] = useState(0)
-  const [repState, setRepState] = useState<RepState>("ready")
+  const [repState, setRepState] = useState<RepState>("ARMED")
 
+  // Refs for pose detection
+  const poseRef = useRef<any>(null)
+  const animationFrameRef = useRef<number | null>(null)
   const configRef = useRef<DetectorConfig | null>(null)
   const earlyCompleteCallbackRef = useRef<(() => void) | null>(null)
-  const animationFrameRef = useRef<number | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
 
-  const repDetectionRef = useRef<RepDetectionState>({
-    inRep: false,
-    bottomReached: false,
-    topReached: true,
-    invalidRepStarted: false,
-    currentState: "ready",
-    lastValidTime: 0,
-  })
+  // State machine refs
+  const currentStateRef = useRef<RepState>("ARMED")
+  const upFrameCountRef = useRef(0)
+  const downFrameCountRef = useRef(0)
+  const bottomTimeRef = useRef(0)
+  const lastRepTimeRef = useRef(0)
+  const stateChangeTimeRef = useRef(0)
 
-  // Simplified motion detection using video frame analysis
-  const analyzeMotion = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current || !configRef.current) return
+  const processFrame = useCallback(
+    (results: any) => {
+      if (!results.poseLandmarks || !configRef.current) return
 
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext("2d")
+      const timestamp = performance.now()
+      const config = configRef.current
 
-    if (!ctx || video.videoWidth === 0 || video.videoHeight === 0) return
+      try {
+        // Smooth keypoints and calculate angles
+        const keypoints = smoothKeypoints(results.poseLandmarks)
+        const leftKneeAngle = angleBetween(keypoints.leftHip, keypoints.leftKnee, keypoints.leftAnkle)
+        const rightKneeAngle = angleBetween(keypoints.rightHip, keypoints.rightKnee, keypoints.rightAnkle)
+        const hipMovement = calculateHipMovement(keypoints.hipCenter, keypoints.hipPrev)
 
-    // Set canvas size to match video
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+        // Use average of both knees for more stability
+        const avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2
 
-    // Draw current frame
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        // Get thresholds from config
+        const downThreshold = config.rules.down_knee_angle?.max || 90
+        const upThreshold = config.rules.up_leg_straight?.min || 160
+        const tolerance = config.rules.down_knee_angle?.tol || 10
 
-    // Get image data for motion analysis
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const data = imageData.data
+        // Determine if we're in up or down position
+        const isInUpPosition = avgKneeAngle > upThreshold - tolerance
+        const isInDownPosition = avgKneeAngle < downThreshold + tolerance
 
-    // Simple motion detection based on brightness changes in key areas
-    // This is a simplified approach - in production you'd use proper pose detection
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-    const regionSize = 50
-
-    let totalBrightness = 0
-    let pixelCount = 0
-
-    // Analyze center region for motion
-    for (let y = centerY - regionSize; y < centerY + regionSize; y++) {
-      for (let x = centerX - regionSize; x < centerX + regionSize; x++) {
-        if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-          const index = (y * canvas.width + x) * 4
-          const brightness = (data[index] + data[index + 1] + data[index + 2]) / 3
-          totalBrightness += brightness
-          pixelCount++
+        // Update frame counters for hysteresis
+        if (isInUpPosition) {
+          upFrameCountRef.current++
+          downFrameCountRef.current = 0
+        } else if (isInDownPosition) {
+          downFrameCountRef.current++
+          upFrameCountRef.current = 0
+        } else {
+          // In middle range - maintain current counts but don't reset
+          upFrameCountRef.current = Math.max(0, upFrameCountRef.current - 1)
+          downFrameCountRef.current = Math.max(0, downFrameCountRef.current - 1)
         }
-      }
-    }
 
-    const avgBrightness = totalBrightness / pixelCount
-    const currentTime = Date.now()
+        const currentState = currentStateRef.current
 
-    // Simulate rep detection based on motion patterns
-    // This is a mock implementation - replace with actual pose detection
-    simulateRepDetection(avgBrightness, currentTime)
+        // State machine logic
+        switch (currentState) {
+          case "ARMED":
+            // Wait for stable up position before starting
+            if (upFrameCountRef.current >= FRAMES_FOR_STATE && isInUpPosition) {
+              currentStateRef.current = "UP"
+              setRepState("UP")
+              stateChangeTimeRef.current = timestamp
+            }
+            break
 
-    // Continue analysis
-    animationFrameRef.current = requestAnimationFrame(analyzeMotion)
-  }, [])
+          case "UP":
+            // Transition to DOWN when we detect downward movement
+            if (downFrameCountRef.current >= FRAMES_FOR_STATE && isInDownPosition && hipMovement < -HIP_MOVE_MIN_CM) {
+              currentStateRef.current = "DOWN"
+              setRepState("DOWN")
+              bottomTimeRef.current = timestamp
+              stateChangeTimeRef.current = timestamp
+            }
+            break
 
-  const simulateRepDetection = useCallback((brightness: number, currentTime: number) => {
-    if (!configRef.current) return
+          case "DOWN":
+            const timeAtBottom = timestamp - bottomTimeRef.current
+            const timeSinceLastRep = timestamp - lastRepTimeRef.current
 
-    const currentDetection = repDetectionRef.current
-    const timeSinceLastRep = currentTime - currentDetection.lastValidTime
+            // Check if we've stayed at bottom long enough
+            const hasStayedAtBottom = timeAtBottom >= BOTTOM_DWELL_MS
 
-    // Simulate squat detection based on time intervals and motion
-    // This creates a realistic demo experience
-    if (configRef.current.pose === "squat") {
-      // Simulate a rep every 3-4 seconds with some randomness
-      const repInterval = 3000 + Math.random() * 1000 // 3-4 seconds
-
-      if (timeSinceLastRep > repInterval && currentDetection.currentState === "ready") {
-        // Start descending
-        currentDetection.currentState = "descending"
-        currentDetection.inRep = true
-        setRepState("descending")
-
-        setTimeout(() => {
-          // Reach bottom
-          currentDetection.currentState = "bottom"
-          currentDetection.bottomReached = true
-          setRepState("bottom")
-
-          setTimeout(() => {
-            // Start ascending
-            currentDetection.currentState = "ascending"
-            setRepState("ascending")
-
-            setTimeout(() => {
-              // Complete rep
-              currentDetection.currentState = "complete"
-              setRepState("complete")
-              currentDetection.lastValidTime = currentTime
-
+            // Transition back to UP for valid rep
+            if (
+              upFrameCountRef.current >= FRAMES_FOR_STATE &&
+              isInUpPosition &&
+              hipMovement > HIP_MOVE_MIN_CM &&
+              hasStayedAtBottom &&
+              timeSinceLastRep > MIN_REP_MS
+            ) {
+              // Valid rep completed!
               setValidReps((prev) => {
                 const newCount = prev + 1
 
                 // Check for early completion
                 if (
-                  configRef.current?.scoringKey === "first_n_valid_reps" &&
-                  configRef.current?.minValidReps &&
-                  newCount >= configRef.current.minValidReps &&
+                  config.scoringKey === "first_n_valid_reps" &&
+                  config.minValidReps &&
+                  newCount >= config.minValidReps &&
                   earlyCompleteCallbackRef.current
                 ) {
                   setTimeout(() => earlyCompleteCallbackRef.current?.(), 100)
@@ -144,75 +133,124 @@ export const useRepDetector = () => {
                 return newCount
               })
 
-              // Reset for next rep
+              currentStateRef.current = "UP"
+              setRepState("UP")
+              lastRepTimeRef.current = timestamp
+              stateChangeTimeRef.current = timestamp
+            }
+            // Invalid rep - bounced up too quickly or didn't stay at bottom
+            else if (
+              upFrameCountRef.current >= FRAMES_FOR_STATE &&
+              (!hasStayedAtBottom || timeSinceLastRep <= MIN_REP_MS)
+            ) {
+              if (config.rules.track_invalid_reps) {
+                setInvalidReps((prev) => prev + 1)
+              }
+
+              currentStateRef.current = "INVALID"
+              setRepState("INVALID")
+              stateChangeTimeRef.current = timestamp
+
+              // Return to UP after brief invalid state
               setTimeout(() => {
-                currentDetection.currentState = "ready"
-                currentDetection.inRep = false
-                currentDetection.bottomReached = false
-                currentDetection.topReached = true
-                currentDetection.invalidRepStarted = false
-                setRepState("ready")
-              }, 500)
-            }, 800) // ascending time
-          }, 600) // bottom hold time
-        }, 1000) // descending time
-      }
+                currentStateRef.current = "UP"
+                setRepState("UP")
+              }, 1000)
+            }
+            break
 
-      // Occasionally simulate invalid reps
-      if (Math.random() < 0.1 && currentDetection.inRep && !currentDetection.invalidRepStarted) {
-        if (configRef.current.rules.track_invalid_reps) {
-          setInvalidReps((prev) => prev + 1)
-          currentDetection.invalidRepStarted = true
-          setRepState("invalid")
-
-          setTimeout(() => {
-            currentDetection.currentState = "ready"
-            currentDetection.inRep = false
-            currentDetection.bottomReached = false
-            currentDetection.topReached = true
-            currentDetection.invalidRepStarted = false
-            setRepState("ready")
-          }, 1000)
+          case "INVALID":
+            // Wait for return to stable up position
+            if (upFrameCountRef.current >= FRAMES_FOR_STATE && isInUpPosition) {
+              currentStateRef.current = "UP"
+              setRepState("UP")
+              stateChangeTimeRef.current = timestamp
+            }
+            break
         }
+
+        // Debug overlay
+        if (config.debug) {
+          window.__debugOverlay?.({
+            leftKneeAngle,
+            rightKneeAngle,
+            hipMovement,
+            state: currentStateRef.current,
+          })
+        }
+      } catch (error) {
+        console.error("Error processing pose frame:", error)
       }
-    }
-  }, [])
+    },
+    [setValidReps, setInvalidReps, setRepState],
+  )
 
   const initDetector = useCallback(
     async (videoEl: HTMLVideoElement, cfg: DetectorConfig) => {
       try {
         configRef.current = cfg
-        videoRef.current = videoEl
 
-        // Create hidden canvas for motion analysis
-        const canvas = document.createElement("canvas")
-        canvas.style.display = "none"
-        document.body.appendChild(canvas)
-        canvasRef.current = canvas
-
-        // Reset state
-        setValidReps(0)
-        setInvalidReps(0)
-        setRepState("ready")
-        repDetectionRef.current = {
-          inRep: false,
-          bottomReached: false,
-          topReached: true,
-          invalidRepStarted: false,
-          currentState: "ready",
-          lastValidTime: Date.now(),
+        // Initialize debug overlay if enabled
+        if (cfg.debug) {
+          debugOverlay.init()
         }
 
-        // Start motion analysis
-        analyzeMotion()
+        // Load MediaPipe dynamically
+        const script = document.createElement("script")
+        script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"
+        document.head.appendChild(script)
 
-        console.log("Pose detector initialized (demo mode)")
+        await new Promise((resolve, reject) => {
+          script.onload = resolve
+          script.onerror = reject
+        })
+
+        // Initialize MediaPipe Pose
+        const { Pose } = window as any
+        const pose = new Pose({
+          locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+        })
+
+        pose.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          enableSegmentation: false,
+          minDetectionConfidence: 0.7,
+          minTrackingConfidence: 0.5,
+        })
+
+        pose.onResults(processFrame)
+        poseRef.current = pose
+
+        // Start processing video frames
+        const processVideo = async () => {
+          if (poseRef.current && videoEl.videoWidth > 0) {
+            await poseRef.current.send({ image: videoEl })
+          }
+          animationFrameRef.current = requestAnimationFrame(processVideo)
+        }
+
+        processVideo()
+
+        // Reset all state
+        resetSmoothingState()
+        setValidReps(0)
+        setInvalidReps(0)
+        setRepState("ARMED")
+        currentStateRef.current = "ARMED"
+        upFrameCountRef.current = 0
+        downFrameCountRef.current = 0
+        bottomTimeRef.current = 0
+        lastRepTimeRef.current = 0
+        stateChangeTimeRef.current = performance.now()
+
+        console.log("Real pose detector initialized successfully")
       } catch (error) {
         console.error("Failed to initialize pose detector:", error)
         throw error
       }
     },
-    [analyzeMotion],
+    [processFrame],
   )
 
   const destroyDetector = useCallback(() => {
@@ -221,12 +259,16 @@ export const useRepDetector = () => {
       animationFrameRef.current = null
     }
 
-    if (canvasRef.current) {
-      document.body.removeChild(canvasRef.current)
-      canvasRef.current = null
+    if (poseRef.current) {
+      poseRef.current.close()
+      poseRef.current = null
     }
 
-    videoRef.current = null
+    if (configRef.current?.debug) {
+      debugOverlay.destroy()
+    }
+
+    resetSmoothingState()
     configRef.current = null
   }, [])
 
@@ -241,7 +283,7 @@ export const useRepDetector = () => {
     initDetector,
     validReps,
     invalidReps,
-    repState,
+    repState: repState.toLowerCase() as "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid",
     destroyDetector,
     onEarlyComplete,
   }

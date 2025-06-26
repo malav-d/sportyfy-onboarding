@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge"
 import { useRepDetector, type DetectorConfig } from "@/hooks/useRepDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
 
+// Add after the imports
+const DEBUG_OVERLAY =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true"
+
 interface ChallengeData {
   id: string
   title: string
@@ -101,6 +105,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     rules: challengeData.verification_rules,
     minValidReps: challengeData.requirements?.min_valid_reps ?? null,
     scoringKey: challengeData.scoring_method.key as "max_reps_in_time" | "first_n_valid_reps",
+    debug: DEBUG_OVERLAY,
   }
 
   const { initDetector, validReps, invalidReps, repState, destroyDetector, onEarlyComplete } = useRepDetector()
@@ -345,7 +350,9 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
             )}
 
             {/* Demo Mode Indicator */}
-            <Badge className="bg-blue-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Demo Mode</Badge>
+            {DEBUG_OVERLAY && (
+              <Badge className="bg-orange-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Debug Mode</Badge>
+            )}
           </div>
         </div>
 
