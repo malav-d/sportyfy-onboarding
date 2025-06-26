@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
-import { X, Circle, Target, AlertTriangle } from "lucide-react"
+import { X, Target, AlertTriangle, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRepDetector, type DetectorConfig } from "@/hooks/useRepDetector"
@@ -222,7 +222,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     if (!videoRef.current) return
 
     try {
-      // Initialize pose detector
+      // Initialize pose detector (demo mode)
       await initDetector(videoRef.current, detectorConfig)
 
       // Start recording state
@@ -302,7 +302,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
           {/* Cancel Button */}
           <button
             onClick={handleCancel}
-            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center"
+            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
           >
             <X className="h-5 w-5 text-white" />
           </button>
@@ -310,14 +310,14 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
           {/* Stats */}
           <div className="flex flex-col items-end space-y-2">
             {/* Valid Reps */}
-            <Badge className="bg-green-500/90 text-white backdrop-blur-sm px-3 py-1">
+            <Badge className="bg-green-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
               <Target className="h-4 w-4 mr-1" />
               {validReps} {challengeData.metrics_spec.primary.label}
             </Badge>
 
             {/* Invalid Reps (if tracking enabled) */}
             {challengeData.verification_rules.track_invalid_reps && invalidReps > 0 && (
-              <Badge className="bg-red-500/90 text-white backdrop-blur-sm px-3 py-1">
+              <Badge className="bg-red-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
                 <AlertTriangle className="h-4 w-4 mr-1" />
                 {invalidReps} Invalid
               </Badge>
@@ -326,7 +326,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
             {/* Rep State Indicator */}
             {isRecording && (
               <Badge
-                className={`backdrop-blur-sm px-3 py-1 ${
+                className={`backdrop-blur-sm px-3 py-1 text-sm font-bold transition-colors ${
                   repState === "complete"
                     ? "bg-green-500/90 text-white"
                     : repState === "invalid"
@@ -343,6 +343,9 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
                 {repState.charAt(0).toUpperCase() + repState.slice(1)}
               </Badge>
             )}
+
+            {/* Demo Mode Indicator */}
+            <Badge className="bg-blue-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Demo Mode</Badge>
           </div>
         </div>
 
@@ -355,7 +358,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 1.5, opacity: 0 }}
-              className="text-9xl font-bold text-white"
+              className="text-9xl font-bold text-white drop-shadow-lg"
             >
               {countdown}
             </motion.div>
@@ -366,12 +369,13 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              className="bg-white/90 backdrop-blur-sm text-black px-8 py-6 rounded-2xl text-center"
+              className="bg-white/90 backdrop-blur-sm text-black px-8 py-6 rounded-2xl text-center shadow-xl"
             >
               <div className="text-2xl font-bold mb-2">Recording Complete!</div>
               <div className="text-lg">
                 {validReps} valid reps in {(challengeData.duration_limit - timeLeft).toFixed(1)}s
               </div>
+              {invalidReps > 0 && <div className="text-sm text-red-600 mt-1">{invalidReps} invalid reps detected</div>}
             </motion.div>
           )}
         </div>
@@ -408,7 +412,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
           {/* Recording Status */}
           {isRecording && (
-            <div className="text-center">
+            <div className="text-center mb-4">
               <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full inline-flex items-center space-x-2">
                 <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
                 <span className="text-white font-bold">Recording...</span>
@@ -421,14 +425,17 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
             <div className="space-y-4">
               <Button
                 onClick={startRecording}
-                className="w-full bg-white text-black hover:bg-gray-100 text-xl py-6 rounded-full font-bold"
+                className="w-full bg-white text-black hover:bg-gray-100 text-xl py-6 rounded-full font-bold transition-all"
                 size="lg"
               >
-                <Circle className="h-6 w-6 mr-2" />
-                Start Recording
+                <Camera className="h-6 w-6 mr-2" />
+                Start Challenge
               </Button>
               <div className="text-center">
-                <button onClick={onCancel} className="text-white/70 text-sm font-medium">
+                <button
+                  onClick={onCancel}
+                  className="text-white/70 text-sm font-medium hover:text-white transition-colors"
+                >
                   Cancel
                 </button>
               </div>

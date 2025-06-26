@@ -13,6 +13,8 @@ export const useCountdownTimer = ({ duration, onExpire }: UseCountdownTimerProps
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const startTimeRef = useRef<number | null>(null)
 
+  const progress = duration > 0 ? (duration - timeLeft) / duration : 0
+
   const start = useCallback(() => {
     if (isRunning) return
 
@@ -50,9 +52,6 @@ export const useCountdownTimer = ({ duration, onExpire }: UseCountdownTimerProps
     startTimeRef.current = null
   }, [duration, stop])
 
-  // Calculate progress (0 to 1)
-  const progress = duration > 0 ? (duration - timeLeft) / duration : 0
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -65,10 +64,10 @@ export const useCountdownTimer = ({ duration, onExpire }: UseCountdownTimerProps
   return {
     timeLeft,
     isRunning,
+    progress,
     start,
     stop,
     reset,
-    progress,
   }
 }
 
