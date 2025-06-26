@@ -1,49 +1,73 @@
 "use client"
-import { useState, useEffect, useRef, useCallback } from "react"
 
-interface CountdownTimerProps {
-  duration: number
+import { useState, useRef, useCallback, useEffect } from "react"
+
+interface UseCountdownTimerProps {
+  duration: number // in seconds
   onExpire: () => void
 }
 
-export function useCountdownTimer({ duration, onExpire }: CountdownTimerProps) {
+export const useCountdownTimer = ({ duration, onExpire }: UseCountdownTimerProps) => {
   const [timeLeft, setTimeLeft] = useState(duration)
   const [isRunning, setIsRunning] = useState(false)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-
-  const stop = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-    setIsRunning(false)
-  }, [])
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const startTimeRef = useRef<number | null>(null)
 
   const start = useCallback(() => {
-    stop() // Ensure no multiple timers
+    if (isRunning) return
+
     setIsRunning(true)
-    const startTime = Date.now()
-    setTimeLeft(duration)
+    startTimeRef.current = Date.now()
 
-    timerRef.current = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000
-      const newTimeLeft = duration - elapsed
+    intervalRef.current = setInterval(() => {
+      const elapsed = (Date.now() - (startTimeRef.current || 0)) / 1000
+      const remaining = Math.max(0, duration - elapsed)
 
-      if (newTimeLeft <= 0) {
-        setTimeLeft(0)
-        stop()
+      setTimeLeft(remaining)
+
+      if (remaining <= 0) {
+        setIsRunning(false)
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
         onExpire()
-      } else {
-        setTimeLeft(newTimeLeft)
       }
-    }, 100)
-  }, [duration, onExpire, stop])
+    }, 100) // Update every 100ms for smooth progress
+  }, [duration, isRunning, onExpire])
 
+  const stop = useCallback(() => {
+    setIsRunning(false)
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    stop()
+    setTimeLeft(duration)
+    startTimeRef.current = null
+  }, [duration, stop])
+
+  // Calculate progress (0 to 1)
+  const progress = duration > 0 ? (duration - timeLeft) / duration : 0
+
+  // Cleanup on unmount
   useEffect(() => {
-    return () => stop() // Cleanup on unmount
-  }, [stop])
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [])
 
-  const progress = timeLeft > 0 ? (duration - timeLeft) / duration : 1
-
-  return { timeLeft, isRunning, start, stop, progress }
+  return {
+    timeLeft,
+    isRunning,
+    progress,
+    start,
+    stop,
+    reset,
+  }
 }
