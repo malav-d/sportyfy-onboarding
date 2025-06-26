@@ -12,11 +12,12 @@ export interface DetectorConfig {
 
 type RepState = "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid"
 
-// Tunables for accuracy
-const MIN_REP_MS = 1200 // Minimum 1.2 seconds per rep (50 reps/min max)
-const BOTTOM_DWELL_MS = 300 // Must stay at bottom for 300ms
-const FRAMES_FOR_STATE = 4 // Need 4 consecutive frames to change state
-const HIP_MOVE_MIN_CM = 8 // Minimum hip movement to confirm rep
+// Much more sensitive tunables
+const MIN_REP_MS = 800 // Reduced from 1200ms - allow faster reps
+const BOTTOM_DWELL_MS = 150 // Reduced from 300ms - shorter bottom hold
+const FRAMES_FOR_STATE = 2 // Reduced from 4 - faster state changes
+const MOVEMENT_THRESHOLD = 3 // Much lower threshold for detecting movement
+const HIGH_MOVEMENT_THRESHOLD = 8 // Lower threshold for significant movement
 
 // Simple motion detection using video analysis
 interface MotionData {
@@ -47,6 +48,7 @@ export const useRepDetector = () => {
   // Motion detection refs
   const motionHistoryRef = useRef<MotionData[]>([])
   const lastFrameDataRef = useRef<ImageData | null>(null)
+  const movementSmoothingRef = useRef<number[]>([])
 
   const analyzeMotion = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !configRef.current) return
@@ -73,34 +75,38 @@ export const useRepDetector = () => {
 
     const timestamp = performance.now()
 
-    // Calculate motion and brightness
+    // Calculate motion and brightness with multiple regions
     let totalBrightness = 0
     let totalMovement = 0
     let pixelCount = 0
 
-    // Analyze center region (where person should be)
-    const centerX = canvas.width / 2
-    const centerY = canvas.height / 2
-    const regionSize = Math.min(canvas.width, canvas.height) / 4
+    // Analyze multiple regions for better detection
+    const regions = [
+      { x: canvas.width * 0.3, y: canvas.height * 0.3, size: canvas.width * 0.2 }, // Upper body
+      { x: canvas.width * 0.5, y: canvas.height * 0.5, size: canvas.width * 0.15 }, // Center
+      { x: canvas.width * 0.4, y: canvas.height * 0.7, size: canvas.width * 0.2 }, // Lower body
+    ]
 
-    for (let y = centerY - regionSize; y < centerY + regionSize; y += 4) {
-      for (let x = centerX - regionSize; x < centerX + regionSize; x += 4) {
-        if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-          const index = (Math.floor(y) * canvas.width + Math.floor(x)) * 4
-          const brightness = (currentFrameData[index] + currentFrameData[index + 1] + currentFrameData[index + 2]) / 3
-          totalBrightness += brightness
+    for (const region of regions) {
+      for (let y = region.y - region.size; y < region.y + region.size; y += 2) {
+        for (let x = region.x - region.size; x < region.x + region.size; x += 2) {
+          if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
+            const index = (Math.floor(y) * canvas.width + Math.floor(x)) * 4
+            const brightness = (currentFrameData[index] + currentFrameData[index + 1] + currentFrameData[index + 2]) / 3
+            totalBrightness += brightness
 
-          // Calculate movement if we have previous frame
-          if (lastFrameDataRef.current) {
-            const prevBrightness =
-              (lastFrameDataRef.current[index] +
-                lastFrameDataRef.current[index + 1] +
-                lastFrameDataRef.current[index + 2]) /
-              3
-            totalMovement += Math.abs(brightness - prevBrightness)
+            // Calculate movement if we have previous frame
+            if (lastFrameDataRef.current) {
+              const prevBrightness =
+                (lastFrameDataRef.current[index] +
+                  lastFrameDataRef.current[index + 1] +
+                  lastFrameDataRef.current[index + 2]) /
+                3
+              totalMovement += Math.abs(brightness - prevBrightness)
+            }
+
+            pixelCount++
           }
-
-          pixelCount++
         }
       }
     }
@@ -108,17 +114,26 @@ export const useRepDetector = () => {
     const avgBrightness = totalBrightness / pixelCount
     const avgMovement = totalMovement / pixelCount
 
+    // Smooth movement data
+    movementSmoothingRef.current.push(avgMovement)
+    if (movementSmoothingRef.current.length > 10) {
+      movementSmoothingRef.current.shift()
+    }
+
+    const smoothedMovement =
+      movementSmoothingRef.current.reduce((a, b) => a + b, 0) / movementSmoothingRef.current.length
+
     // Store motion data
     const motionData: MotionData = {
       brightness: avgBrightness,
-      movement: avgMovement,
+      movement: smoothedMovement,
       timestamp,
     }
 
     motionHistoryRef.current.push(motionData)
 
-    // Keep only last 2 seconds of data
-    const cutoffTime = timestamp - 2000
+    // Keep only last 3 seconds of data
+    const cutoffTime = timestamp - 3000
     motionHistoryRef.current = motionHistoryRef.current.filter((data) => data.timestamp > cutoffTime)
 
     // Analyze motion patterns for rep detection
@@ -132,27 +147,38 @@ export const useRepDetector = () => {
   }, [])
 
   const analyzeRepPattern = useCallback((currentMotion: MotionData, timestamp: number) => {
-    if (!configRef.current || motionHistoryRef.current.length < 10) return
+    if (!configRef.current || motionHistoryRef.current.length < 5) return
 
     const config = configRef.current
     const motionHistory = motionHistoryRef.current
 
-    // Calculate movement trends
-    const recentMotion = motionHistory.slice(-30) // Last 1 second at 30fps
-    const avgMovement = recentMotion.reduce((sum, data) => sum + data.movement, 0) / recentMotion.length
+    // Calculate movement trends over different time windows
+    const recent = motionHistory.slice(-15) // Last 0.5 seconds
+    const short = motionHistory.slice(-30) // Last 1 second
+    const medium = motionHistory.slice(-60) // Last 2 seconds
 
-    // Detect if user is in motion (squatting)
-    const isMoving = avgMovement > 5 // Threshold for detecting movement
-    const isHighMovement = avgMovement > 15 // Threshold for significant movement
+    const recentMovement = recent.reduce((sum, data) => sum + data.movement, 0) / recent.length
+    const shortMovement = short.reduce((sum, data) => sum + data.movement, 0) / short.length
+    const mediumMovement = medium.reduce((sum, data) => sum + data.movement, 0) / medium.length
+
+    // Detect movement patterns
+    const isMoving = recentMovement > MOVEMENT_THRESHOLD
+    const isHighMovement = recentMovement > HIGH_MOVEMENT_THRESHOLD
+    const isIncreasingMovement = recentMovement > shortMovement * 1.2
+    const isDecreasingMovement = recentMovement < shortMovement * 0.8
 
     // Simple state machine based on movement patterns
     const currentState = currentStateRef.current
     const timeSinceLastRep = timestamp - lastRepTimeRef.current
 
-    // Simulate squat detection based on movement patterns
+    console.log(
+      `State: ${currentState}, Movement: ${recentMovement.toFixed(2)}, High: ${isHighMovement}, Increasing: ${isIncreasingMovement}`,
+    )
+
     switch (currentState) {
       case "ready":
-        if (isMoving) {
+        if (isMoving && isIncreasingMovement) {
+          console.log("Starting descent - movement detected")
           currentStateRef.current = "descending"
           setRepState("descending")
           upFrameCountRef.current = 0
@@ -164,11 +190,12 @@ export const useRepDetector = () => {
         if (isHighMovement) {
           downFrameCountRef.current++
           upFrameCountRef.current = 0
-        } else {
+        } else if (!isMoving) {
           downFrameCountRef.current = Math.max(0, downFrameCountRef.current - 1)
         }
 
-        if (downFrameCountRef.current >= FRAMES_FOR_STATE) {
+        if (downFrameCountRef.current >= FRAMES_FOR_STATE && isHighMovement) {
+          console.log("Reached bottom position")
           currentStateRef.current = "bottom"
           setRepState("bottom")
           bottomTimeRef.current = timestamp
@@ -178,24 +205,26 @@ export const useRepDetector = () => {
       case "bottom":
         const timeAtBottom = timestamp - bottomTimeRef.current
 
-        if (isHighMovement && timeAtBottom > BOTTOM_DWELL_MS) {
+        if (isHighMovement && timeAtBottom > BOTTOM_DWELL_MS && isIncreasingMovement) {
           upFrameCountRef.current++
           downFrameCountRef.current = 0
         }
 
         if (upFrameCountRef.current >= FRAMES_FOR_STATE && timeAtBottom > BOTTOM_DWELL_MS) {
+          console.log("Starting ascent")
           currentStateRef.current = "ascending"
           setRepState("ascending")
         }
         break
 
       case "ascending":
-        if (isMoving) {
+        if (isMoving && !isDecreasingMovement) {
           upFrameCountRef.current++
-        } else {
-          // Movement stopped - check if rep is valid
+        } else if (isDecreasingMovement || !isMoving) {
+          // Movement stopped or decreasing - check if rep is valid
           if (timeSinceLastRep > MIN_REP_MS) {
             // Valid rep!
+            console.log("Valid rep completed!")
             setValidReps((prev) => {
               const newCount = prev + 1
 
@@ -220,9 +249,12 @@ export const useRepDetector = () => {
             setTimeout(() => {
               currentStateRef.current = "ready"
               setRepState("ready")
-            }, 800)
+              upFrameCountRef.current = 0
+              downFrameCountRef.current = 0
+            }, 500)
           } else {
             // Too fast - invalid rep
+            console.log("Invalid rep - too fast")
             if (config.rules.track_invalid_reps) {
               setInvalidReps((prev) => prev + 1)
             }
@@ -233,6 +265,8 @@ export const useRepDetector = () => {
             setTimeout(() => {
               currentStateRef.current = "ready"
               setRepState("ready")
+              upFrameCountRef.current = 0
+              downFrameCountRef.current = 0
             }, 1000)
           }
         }
@@ -247,9 +281,9 @@ export const useRepDetector = () => {
     // Debug overlay
     if (config.debug && typeof window !== "undefined" && (window as any).__debugOverlay) {
       ;(window as any).__debugOverlay({
-        leftKneeAngle: 180 - avgMovement * 3, // Simulate knee angle
-        rightKneeAngle: 180 - avgMovement * 3,
-        hipMovement: isHighMovement ? -10 : 5, // Simulate hip movement
+        leftKneeAngle: 180 - recentMovement * 5, // Simulate knee angle based on movement
+        rightKneeAngle: 180 - recentMovement * 5,
+        hipMovement: isHighMovement ? -15 : 5, // Simulate hip movement
         state: currentState.toUpperCase(),
       })
     }
@@ -284,11 +318,12 @@ export const useRepDetector = () => {
         lastRepTimeRef.current = performance.now()
         motionHistoryRef.current = []
         lastFrameDataRef.current = null
+        movementSmoothingRef.current = []
 
         // Start motion analysis
         analyzeMotion()
 
-        console.log("Accurate motion detector initialized")
+        console.log("Sensitive motion detector initialized")
       } catch (error) {
         console.error("Failed to initialize pose detector:", error)
         throw error
@@ -318,6 +353,7 @@ export const useRepDetector = () => {
     configRef.current = null
     motionHistoryRef.current = []
     lastFrameDataRef.current = null
+    movementSmoothingRef.current = []
   }, [])
 
   const onEarlyComplete = useCallback((callback: () => void) => {

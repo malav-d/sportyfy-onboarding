@@ -5,7 +5,6 @@ interface DebugData {
   rightKneeAngle: number
   hipMovement: number
   state: string
-  timestamp?: number
 }
 
 class DebugOverlay {
@@ -13,6 +12,7 @@ class DebugOverlay {
   private ctx: CanvasRenderingContext2D | null = null
   private angleHistory: number[] = []
   private hipHistory: number[] = []
+  private stateHistory: string[] = []
   private maxHistory = 300 // 10 seconds at 30fps
 
   init() {
@@ -21,37 +21,39 @@ class DebugOverlay {
     // Create debug canvas
     this.canvas = document.createElement("canvas")
     this.canvas.id = "debug-overlay"
-    this.canvas.width = 400
-    this.canvas.height = 300
+    this.canvas.width = 300
+    this.canvas.height = 200
     this.canvas.style.position = "fixed"
     this.canvas.style.top = "10px"
     this.canvas.style.left = "10px"
     this.canvas.style.zIndex = "9999"
     this.canvas.style.backgroundColor = "rgba(0, 0, 0, 0.8)"
-    this.canvas.style.border = "2px solid #00ff00"
+    this.canvas.style.border = "1px solid white"
     this.canvas.style.borderRadius = "8px"
 
     document.body.appendChild(this.canvas)
     this.ctx = this.canvas.getContext("2d")
 
-    // Add global debug function
+    // Add to global scope for access from detector
     ;(window as any).__debugOverlay = this.update.bind(this)
   }
 
   update(data: DebugData) {
-    if (!this.canvas || !this.ctx) return
+    if (!this.ctx || !this.canvas) return
 
     const { leftKneeAngle, rightKneeAngle, hipMovement, state } = data
     const avgAngle = (leftKneeAngle + rightKneeAngle) / 2
 
-    // Add to history
+    // Store history
     this.angleHistory.push(avgAngle)
     this.hipHistory.push(hipMovement)
+    this.stateHistory.push(state)
 
     // Trim history
     if (this.angleHistory.length > this.maxHistory) {
       this.angleHistory.shift()
       this.hipHistory.shift()
+      this.stateHistory.shift()
     }
 
     // Clear canvas
@@ -59,130 +61,85 @@ class DebugOverlay {
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
 
     // Draw angle graph
-    this.drawAngleGraph()
+    this.ctx.strokeStyle = "#00ff00"
+    this.ctx.lineWidth = 2
+    this.ctx.beginPath()
 
-    // Draw hip movement graph
-    this.drawHipGraph()
+    const angleRange = 180 // 0-180 degrees
+    const graphHeight = 80
+    const graphTop = 20
 
-    // Draw current values
-    this.drawCurrentValues(data)
-  }
+    for (let i = 0; i < this.angleHistory.length; i++) {
+      const x = (i / this.maxHistory) * this.canvas.width
+      const y = graphTop + ((180 - this.angleHistory[i]) / angleRange) * graphHeight
 
-  private drawAngleGraph() {
-    if (!this.ctx || !this.canvas) return
+      if (i === 0) {
+        this.ctx.moveTo(x, y)
+      } else {
+        this.ctx.lineTo(x, y)
+      }
+    }
+    this.ctx.stroke()
 
-    const graphHeight = 120
-    const graphY = 20
-    const graphWidth = this.canvas.width - 40
-
-    // Draw background
-    this.ctx.fillStyle = "rgba(255, 255, 255, 0.1)"
-    this.ctx.fillRect(20, graphY, graphWidth, graphHeight)
-
-    // Draw threshold lines
+    // Draw thresholds
     this.ctx.strokeStyle = "#ff0000"
     this.ctx.lineWidth = 1
     this.ctx.setLineDash([5, 5])
 
     // Down threshold (90 degrees)
-    const downY = graphY + graphHeight - (90 / 180) * graphHeight
+    const downY = graphTop + ((180 - 90) / angleRange) * graphHeight
     this.ctx.beginPath()
-    this.ctx.moveTo(20, downY)
-    this.ctx.lineTo(20 + graphWidth, downY)
+    this.ctx.moveTo(0, downY)
+    this.ctx.lineTo(this.canvas.width, downY)
     this.ctx.stroke()
 
     // Up threshold (160 degrees)
-    const upY = graphY + graphHeight - (160 / 180) * graphHeight
+    const upY = graphTop + ((180 - 160) / angleRange) * graphHeight
     this.ctx.beginPath()
-    this.ctx.moveTo(20, upY)
-    this.ctx.lineTo(20 + graphWidth, upY)
+    this.ctx.moveTo(0, upY)
+    this.ctx.lineTo(this.canvas.width, upY)
     this.ctx.stroke()
 
-    // Draw angle line
-    this.ctx.strokeStyle = "#00ff00"
-    this.ctx.lineWidth = 2
     this.ctx.setLineDash([])
 
-    if (this.angleHistory.length > 1) {
-      this.ctx.beginPath()
-      for (let i = 0; i < this.angleHistory.length; i++) {
-        const x = 20 + (i / this.angleHistory.length) * graphWidth
-        const y = graphY + graphHeight - (this.angleHistory[i] / 180) * graphHeight
-        if (i === 0) {
-          this.ctx.moveTo(x, y)
-        } else {
-          this.ctx.lineTo(x, y)
-        }
-      }
-      this.ctx.stroke()
-    }
-
-    // Labels
-    this.ctx.fillStyle = "#ffffff"
-    this.ctx.font = "12px monospace"
-    this.ctx.fillText("Knee Angle", 25, graphY - 5)
-    this.ctx.fillText("90°", 25, downY - 5)
-    this.ctx.fillText("160°", 25, upY - 5)
-  }
-
-  private drawHipGraph() {
-    if (!this.ctx || !this.canvas) return
-
-    const graphHeight = 80
-    const graphY = 160
-    const graphWidth = this.canvas.width - 40
-
-    // Draw background
-    this.ctx.fillStyle = "rgba(255, 255, 255, 0.1)"
-    this.ctx.fillRect(20, graphY, graphWidth, graphHeight)
-
-    // Draw zero line
-    this.ctx.strokeStyle = "#ffffff"
-    this.ctx.lineWidth = 1
-    this.ctx.setLineDash([2, 2])
-    const zeroY = graphY + graphHeight / 2
+    // Draw hip movement graph
+    this.ctx.strokeStyle = "#0088ff"
+    this.ctx.lineWidth = 2
     this.ctx.beginPath()
-    this.ctx.moveTo(20, zeroY)
-    this.ctx.lineTo(20 + graphWidth, zeroY)
+
+    const hipRange = 40 // -20 to +20 cm
+    const hipGraphTop = 120
+    const hipGraphHeight = 60
+
+    for (let i = 0; i < this.hipHistory.length; i++) {
+      const x = (i / this.maxHistory) * this.canvas.width
+      const y = hipGraphTop + ((20 - this.hipHistory[i]) / hipRange) * hipGraphHeight
+
+      if (i === 0) {
+        this.ctx.moveTo(x, y)
+      } else {
+        this.ctx.lineTo(x, y)
+      }
+    }
     this.ctx.stroke()
 
-    // Draw hip movement line
-    this.ctx.strokeStyle = "#ffff00"
-    this.ctx.lineWidth = 2
-    this.ctx.setLineDash([])
-
-    if (this.hipHistory.length > 1) {
-      this.ctx.beginPath()
-      for (let i = 0; i < this.hipHistory.length; i++) {
-        const x = 20 + (i / this.hipHistory.length) * graphWidth
-        const normalizedHip = Math.max(-20, Math.min(20, this.hipHistory[i])) // Clamp to ±20cm
-        const y = zeroY - (normalizedHip / 20) * (graphHeight / 2)
-        if (i === 0) {
-          this.ctx.moveTo(x, y)
-        } else {
-          this.ctx.lineTo(x, y)
-        }
-      }
-      this.ctx.stroke()
-    }
-
-    // Labels
-    this.ctx.fillStyle = "#ffffff"
+    // Draw labels
+    this.ctx.fillStyle = "white"
     this.ctx.font = "12px monospace"
-    this.ctx.fillText("Hip Movement", 25, graphY - 5)
-  }
+    this.ctx.fillText("Knee Angle", 5, 15)
+    this.ctx.fillText("Hip Movement", 5, 115)
 
-  private drawCurrentValues(data: DebugData) {
-    if (!this.ctx) return
-
-    this.ctx.fillStyle = "#ffffff"
+    // Current state
+    this.ctx.fillStyle = "#ffff00"
     this.ctx.font = "14px monospace"
+    const currentState = this.stateHistory[this.stateHistory.length - 1] || "UNKNOWN"
+    this.ctx.fillText(`State: ${currentState}`, 5, this.canvas.height - 10)
 
-    const y = 260
-    this.ctx.fillText(`State: ${data.state}`, 25, y)
-    this.ctx.fillText(`L Knee: ${data.leftKneeAngle.toFixed(1)}°`, 25, y + 20)
-    this.ctx.fillText(`R Knee: ${data.rightKneeAngle.toFixed(1)}°`, 150, y + 20)
-    this.ctx.fillText(`Hip: ${data.hipMovement.toFixed(1)}cm`, 275, y + 20)
+    // Current values
+    this.ctx.fillStyle = "#00ff00"
+    this.ctx.font = "10px monospace"
+    this.ctx.fillText(`Angle: ${avgAngle.toFixed(1)}°`, 150, 15)
+    this.ctx.fillText(`Hip: ${hipMovement.toFixed(1)}cm`, 150, 115)
   }
 
   destroy() {
@@ -191,13 +148,14 @@ class DebugOverlay {
       this.canvas = null
       this.ctx = null
     }
-    this.angleHistory = []
-    this.hipHistory = []
 
-    // Remove global debug function
     if (typeof window !== "undefined") {
       delete (window as any).__debugOverlay
     }
+
+    this.angleHistory = []
+    this.hipHistory = []
+    this.stateHistory = []
   }
 }
 

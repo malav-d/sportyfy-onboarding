@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronRight, ChevronLeft, Check, Clock, Trophy, Target } from "lucide-react"
+import { ChevronRight, ChevronLeft, Check, Clock, Trophy, Target, X, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api"
 import { EnhancedVideoCapture } from "./enhanced-video-capture"
@@ -75,14 +75,13 @@ interface ChallengeData {
   }
 }
 
-type OnboardingStep = "welcome" | "prep" | "recording" | "feedback"
+type OnboardingStep = "welcome" | "prep" | "recording" | "feedback" | "failed"
 
 export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome")
   const [prepFrame, setPrepFrame] = useState(0)
-  const [isRecording, setIsRecording] = useState(false)
-  const [countdown, setCountdown] = useState(0)
   const [repCount, setRepCount] = useState(0)
+  const [invalidCount, setInvalidCount] = useState(0)
   const [showToast, setShowToast] = useState(false)
   const [challengeData, setChallengeData] = useState<ChallengeData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -92,6 +91,11 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
   // Calculate success threshold from requirements
   const getSuccessThreshold = () => {
     return challengeData?.requirements.min_valid_reps || 3
+  }
+
+  // Check if challenge was successful
+  const isSuccessful = () => {
+    return repCount >= getSuccessThreshold()
   }
 
   // Fetch tutorial challenge data on component mount
@@ -150,22 +154,18 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
     }
   }, [showToast])
 
-  // Cleanup camera stream on unmount
-  useEffect(() => {
-    return () => {}
-  }, [])
-
-  // Only initialize camera when recording step is active
-  useEffect(() => {}, [currentStep])
-
   const handleContinue = async () => {
-    try {
-      await apiClient.completeTutorial()
-      onComplete()
-    } catch (error) {
-      console.error("Failed to complete tutorial:", error)
-      onComplete()
-    }
+    // Don't make API call - just complete tutorial
+    onComplete()
+  }
+
+  const handleTryAgain = () => {
+    // Reset state and go back to recording
+    setRepCount(0)
+    setInvalidCount(0)
+    setShowToast(false)
+    setToastVisible(true)
+    setCurrentStep("recording")
   }
 
   // Loading state
@@ -432,10 +432,16 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
         challengeData={challengeData}
         onComplete={(result) => {
           console.log("Recording completed with result:", result)
-          setCurrentStep("feedback")
-          setShowToast(true)
-          // Update rep count with actual detected reps
           setRepCount(result.validReps)
+          setInvalidCount(result.invalidReps)
+
+          // Check if challenge was successful
+          if (result.validReps >= getSuccessThreshold()) {
+            setCurrentStep("feedback")
+            setShowToast(true)
+          } else {
+            setCurrentStep("failed")
+          }
         }}
         onCancel={() => {
           setCurrentStep("prep")
@@ -445,7 +451,7 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
     )
   }
 
-  // Screen 4: Feedback Screen
+  // Screen 4: Success Feedback Screen
   const renderFeedbackScreen = () => {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center font-mono relative overflow-hidden">
@@ -581,6 +587,107 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
     )
   }
 
+  // Screen 5: Failed Challenge Screen
+  const renderFailedScreen = () => {
+    return (
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6 text-center font-mono relative overflow-hidden">
+        {/* Main Content */}
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8 }}
+          className="w-full max-w-sm space-y-8"
+        >
+          {/* Failed Icon */}
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.3, type: "spring", stiffness: 200 }}
+            className="w-24 h-24 bg-red-500 rounded-full flex items-center justify-center mx-auto relative"
+          >
+            <X className="h-12 w-12 text-white" />
+          </motion.div>
+
+          {/* Title */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.6 }}
+            className="space-y-2"
+          >
+            <h1 className="text-3xl font-bold text-black">Challenge Failed</h1>
+            <p className="text-lg text-gray-600">You need {getSuccessThreshold()} valid reps to pass</p>
+          </motion.div>
+
+          {/* Stats */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.9, duration: 0.6 }}
+            className="bg-gray-100 p-6 rounded-2xl space-y-4"
+          >
+            <div className="flex justify-between items-center">
+              <span className="text-black font-bold">Valid Reps</span>
+              <span className="text-2xl font-bold text-red-500">
+                {repCount}/{getSuccessThreshold()}
+              </span>
+            </div>
+            {invalidCount > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-black font-bold">Invalid Reps</span>
+                <span className="text-2xl font-bold text-orange-500">{invalidCount}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center">
+              <span className="text-black font-bold">Required</span>
+              <span className="text-2xl font-bold text-black">{getSuccessThreshold()}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-black font-bold">Difficulty</span>
+              <span className="text-2xl font-bold text-black">{challengeData.difficulty.label}</span>
+            </div>
+          </motion.div>
+
+          {/* Action Buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.2 }}
+            className="space-y-4"
+          >
+            <Button
+              onClick={handleTryAgain}
+              className="w-full bg-black text-white hover:bg-gray-800 text-xl py-6 rounded-full font-bold transform hover:scale-105 transition-transform"
+              size="lg"
+            >
+              <RotateCcw className="h-6 w-6 mr-2" />
+              Try Again
+            </Button>
+
+            <Button
+              onClick={handleContinue}
+              variant="outline"
+              className="w-full border-black text-black hover:bg-gray-100 text-lg py-6 rounded-full font-bold"
+              size="lg"
+            >
+              Continue to Dashboard
+            </Button>
+          </motion.div>
+
+          {/* Encouragement */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5 }}
+            className="text-sm text-gray-500"
+          >
+            <p>💪 Keep practicing! You'll get it next time.</p>
+          </motion.div>
+        </motion.div>
+      </div>
+    )
+  }
+
   return (
     <div className="font-mono antialiased">
       <AnimatePresence mode="wait">
@@ -623,6 +730,12 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
         {currentStep === "feedback" && (
           <motion.div key="feedback" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
             {renderFeedbackScreen()}
+          </motion.div>
+        )}
+
+        {currentStep === "failed" && (
+          <motion.div key="failed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            {renderFailedScreen()}
           </motion.div>
         )}
       </AnimatePresence>
