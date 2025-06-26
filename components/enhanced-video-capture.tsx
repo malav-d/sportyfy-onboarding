@@ -5,12 +5,9 @@ import { motion } from "framer-motion"
 import { X, Target, AlertTriangle, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useRepDetector, type DetectorConfig } from "@/hooks/useRepDetector"
+import { usePoseDetector, type DetectorConfig } from "@/hooks/usePoseDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
-
-// Check for debug mode
-const DEBUG_OVERLAY =
-  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true"
+import * as poseDetection from "@tensorflow-models/pose-detection"
 
 interface ChallengeData {
   id: string
@@ -97,18 +94,16 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   const [recordingComplete, setRecordingComplete] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  // Load detector config from challenge data
   const detectorConfig: DetectorConfig = {
-    pose: challengeData.verification_rules.pose,
-    rules: challengeData.verification_rules,
     minValidReps: challengeData.requirements?.min_valid_reps ?? null,
     scoringKey: challengeData.scoring_method.key as "max_reps_in_time" | "first_n_valid_reps",
-    debug: DEBUG_OVERLAY,
   }
 
-  const { initDetector, validReps, invalidReps, repState, destroyDetector, onEarlyComplete } = useRepDetector()
+  const { initDetector, destroyDetector, onEarlyComplete, validReps, invalidReps, repState, debugData, isModelReady } =
+    usePoseDetector()
 
   const handleTimerExpire = useCallback(() => {
     if (isRecording) {
@@ -118,7 +113,6 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
   const {
     timeLeft,
-    isRunning: timerRunning,
     start: startTimer,
     stop: stopTimer,
     progress,
@@ -127,29 +121,15 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     onExpire: handleTimerExpire,
   })
 
-  // Check stop conditions
-  const shouldStop = useCallback(() => {
-    if (detectorConfig.scoringKey === "max_reps_in_time") {
-      return timeLeft <= 0
-    }
-    if (detectorConfig.scoringKey === "first_n_valid_reps") {
-      return (detectorConfig.minValidReps && validReps >= detectorConfig.minValidReps) || timeLeft <= 0
-    }
-    return timeLeft <= 0 // fallback
-  }, [detectorConfig.scoringKey, detectorConfig.minValidReps, validReps, timeLeft])
-
-  // Set up early completion callback
   useEffect(() => {
     const cleanup = onEarlyComplete(() => {
       if (isRecording) {
         stopRecording()
       }
     })
-
     return cleanup
   }, [isRecording, onEarlyComplete])
 
-  // Initialize camera
   useEffect(() => {
     initializeCamera()
     return () => {
@@ -157,32 +137,59 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }
   }, [])
 
+  useEffect(() => {
+    if (!debugData || !canvasRef.current || !videoRef.current) return
+
+    const canvas = canvasRef.current
+    const video = videoRef.current
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    canvas.width = video.clientWidth
+    canvas.height = video.clientHeight
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+    const scaleX = canvas.width / video.videoWidth
+    const scaleY = canvas.height / video.videoHeight
+
+    const connections = poseDetection.util.getAdjacentPairs(poseDetection.SupportedModels.MoveNet)
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.7)"
+    ctx.lineWidth = 2
+    connections.forEach(([i, j]) => {
+      const kp1 = debugData.keypoints[i]
+      const kp2 = debugData.keypoints[j]
+      if (kp1 && kp2 && kp1.score! > 0.3 && kp2.score! > 0.3) {
+        ctx.beginPath()
+        ctx.moveTo(kp1.x * scaleX, kp1.y * scaleY)
+        ctx.lineTo(kp2.x * scaleX, kp2.y * scaleY)
+        ctx.stroke()
+      }
+    })
+
+    ctx.fillStyle = "#5c3bfe"
+    debugData.keypoints.forEach((kp) => {
+      if (kp.score! > 0.3) {
+        ctx.beginPath()
+        ctx.arc(kp.x * scaleX, kp.y * scaleY, 4, 0, 2 * Math.PI)
+        ctx.fill()
+      }
+    })
+  }, [debugData])
+
   const initializeCamera = async () => {
     setCameraError(null)
-
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Camera not supported on this device")
-      }
-
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-        },
+        video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       })
-
       streamRef.current = stream
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream
         videoRef.current.onloadedmetadata = () => {
           setCameraReady(true)
-          if (videoRef.current) {
-            videoRef.current.play().catch(console.warn)
-          }
+          videoRef.current?.play().catch(console.warn)
         }
       }
     } catch (error) {
@@ -192,51 +199,30 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   }
 
   const cleanupCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-    setCameraReady(false)
+    streamRef.current?.getTracks().forEach((track) => track.stop())
+    destroyDetector()
   }
 
-  const startRecording = async () => {
-    if (!cameraReady || !videoRef.current) return
-
-    try {
-      // Start countdown
-      setCountdown(3)
-      const countdownInterval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(countdownInterval)
-            beginRecording()
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
-    } catch (error) {
-      console.error("Failed to start recording:", error)
-    }
+  const startRecording = () => {
+    if (!cameraReady || !videoRef.current || !isModelReady) return
+    setCountdown(3)
+    const countdownInterval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval)
+          beginRecording()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
   }
 
-  const beginRecording = async () => {
+  const beginRecording = () => {
     if (!videoRef.current) return
-
-    try {
-      // Initialize pose detector
-      await initDetector(videoRef.current, detectorConfig)
-
-      // Start recording state
-      setIsRecording(true)
-      startTimer()
-    } catch (error) {
-      console.error("Failed to initialize detector:", error)
-      setCameraError("Failed to start motion detection")
-    }
+    initDetector(videoRef.current, detectorConfig)
+    setIsRecording(true)
+    startTimer()
   }
 
   const stopRecording = () => {
@@ -244,124 +230,70 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     stopTimer()
     destroyDetector()
     setRecordingComplete(true)
-
-    // Prepare result
     const result: RecordingResult = {
       validReps,
       invalidReps,
       elapsed: challengeData.duration_limit - timeLeft,
     }
-
-    // Call completion callback after a brief delay to show final state
-    setTimeout(() => {
-      onComplete(result)
-    }, 2000)
+    setTimeout(() => onComplete(result), 2000)
   }
 
   const handleCancel = () => {
-    if (isRecording) {
-      setIsRecording(false)
-      stopTimer()
-      destroyDetector()
-    }
+    if (isRecording) stopRecording()
     onCancel()
   }
 
-  // Auto-stop when conditions are met
-  useEffect(() => {
-    if (isRecording && shouldStop()) {
-      stopRecording()
-    }
-  }, [isRecording, shouldStop])
-
-  if (cameraError) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-center px-6">
-        <div className="text-red-400 mb-4 text-lg">{cameraError}</div>
-        <Button onClick={initializeCamera} className="bg-white text-black hover:bg-gray-100 mb-4">
-          Try Again
-        </Button>
-        <button onClick={onCancel} className="text-white/70 text-sm">
-          Go Back
-        </button>
-      </div>
-    )
+  const getLoadingMessage = () => {
+    if (!cameraReady) return "Initializing camera..."
+    if (!isModelReady) return "Loading AI model..."
+    return "Ready"
   }
 
   return (
     <div className="min-h-screen bg-black relative font-mono">
-      {/* Video Feed */}
-      <video
-        ref={videoRef}
-        autoPlay
-        muted
-        playsInline
-        className="w-full h-full object-cover"
-        style={{ backgroundColor: "#000" }}
-      />
+      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+      <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
 
-      {/* Overlay Controls */}
+      {isRecording && debugData && (
+        <div className="absolute top-6 left-6 bg-black/50 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 font-mono">
+          <h3 className="font-bold text-sm mb-2 border-b border-white/20 pb-1">Live Analysis</h3>
+          <div>
+            State: <span className="font-bold text-yellow-300">{debugData.state.toUpperCase()}</span>
+          </div>
+          <div>
+            L.Knee: <span className="font-bold">{debugData.leftKneeAngle.toFixed(1)}°</span>
+          </div>
+          <div>
+            R.Knee: <span className="font-bold">{debugData.rightKneeAngle.toFixed(1)}°</span>
+          </div>
+          <div>
+            Hip Move: <span className="font-bold">{(debugData.hipMovement * 100).toFixed(2)}</span>
+          </div>
+        </div>
+      )}
+
       <div className="absolute inset-0 bg-black/20">
-        {/* Top Bar */}
-        <div className="absolute top-6 left-6 right-6 flex justify-between items-start">
-          {/* Cancel Button */}
+        <div className="absolute top-6 right-6 flex flex-col items-end space-y-2">
           <button
             onClick={handleCancel}
-            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-white/30 transition-colors absolute -top-0 -left-16"
           >
             <X className="h-5 w-5 text-white" />
           </button>
-
-          {/* Stats */}
-          <div className="flex flex-col items-end space-y-2">
-            {/* Valid Reps */}
-            <Badge className="bg-green-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
-              <Target className="h-4 w-4 mr-1" />
-              {validReps} {challengeData.metrics_spec.primary.label}
+          <Badge className="bg-green-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
+            <Target className="h-4 w-4 mr-1" />
+            {validReps} Valid Squats
+          </Badge>
+          {challengeData.verification_rules.track_invalid_reps && invalidReps > 0 && (
+            <Badge className="bg-red-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
+              <AlertTriangle className="h-4 w-4 mr-1" />
+              {invalidReps} Invalid
             </Badge>
-
-            {/* Invalid Reps (if tracking enabled) */}
-            {challengeData.verification_rules.track_invalid_reps && invalidReps > 0 && (
-              <Badge className="bg-red-500/90 text-white backdrop-blur-sm px-3 py-1 text-sm font-bold">
-                <AlertTriangle className="h-4 w-4 mr-1" />
-                {invalidReps} Invalid
-              </Badge>
-            )}
-
-            {/* Rep State Indicator */}
-            {isRecording && (
-              <Badge
-                className={`backdrop-blur-sm px-3 py-1 text-sm font-bold transition-colors ${
-                  repState === "complete"
-                    ? "bg-green-500/90 text-white"
-                    : repState === "invalid"
-                      ? "bg-red-500/90 text-white"
-                      : repState === "descending"
-                        ? "bg-blue-500/90 text-white"
-                        : repState === "bottom"
-                          ? "bg-yellow-500/90 text-black"
-                          : repState === "ascending"
-                            ? "bg-purple-500/90 text-white"
-                            : "bg-white/20 text-white"
-                }`}
-              >
-                {repState.charAt(0).toUpperCase() + repState.slice(1)}
-              </Badge>
-            )}
-
-            {/* Debug Mode Indicator */}
-            {DEBUG_OVERLAY && (
-              <Badge className="bg-orange-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Debug Mode</Badge>
-            )}
-
-            {/* Motion Detection Indicator */}
-            <Badge className="bg-blue-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Motion Detection</Badge>
-          </div>
+          )}
+          <Badge className="bg-purple-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Pose Detection</Badge>
         </div>
 
-        {/* Center Content */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          {/* Countdown */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {countdown > 0 && (
             <motion.div
               key={countdown}
@@ -373,8 +305,6 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               {countdown}
             </motion.div>
           )}
-
-          {/* Recording Complete */}
           {recordingComplete && (
             <motion.div
               initial={{ scale: 0 }}
@@ -382,24 +312,17 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               className="bg-white/90 backdrop-blur-sm text-black px-8 py-6 rounded-2xl text-center shadow-xl"
             >
               <div className="text-2xl font-bold mb-2">Recording Complete!</div>
-              <div className="text-lg">
-                {validReps} valid reps in {(challengeData.duration_limit - timeLeft).toFixed(1)}s
-              </div>
-              {invalidReps > 0 && <div className="text-sm text-red-600 mt-1">{invalidReps} invalid reps detected</div>}
+              <div className="text-lg">{validReps} valid reps</div>
             </motion.div>
           )}
         </div>
 
-        {/* Bottom Controls */}
         <div className="absolute bottom-8 left-6 right-6">
-          {/* Timer Progress Ring */}
-          {(isRecording || timerRunning) && (
+          {isRecording && (
             <div className="flex justify-center mb-6">
               <div className="relative w-24 h-24">
                 <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
-                  {/* Background circle */}
                   <circle cx="50" cy="50" r="45" stroke="rgba(255,255,255,0.2)" strokeWidth="8" fill="none" />
-                  {/* Progress circle */}
                   <circle
                     cx="50"
                     cy="50"
@@ -410,7 +333,6 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
                     strokeLinecap="round"
                     strokeDasharray={`${2 * Math.PI * 45}`}
                     strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress)}`}
-                    className="transition-all duration-100 ease-linear"
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -419,45 +341,24 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               </div>
             </div>
           )}
-
-          {/* Recording Status */}
-          {isRecording && (
-            <div className="text-center mb-4">
-              <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full inline-flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-white font-bold">Recording...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Start Recording Button */}
-          {!isRecording && !recordingComplete && countdown === 0 && cameraReady && (
+          {!isRecording && !recordingComplete && countdown === 0 && (
             <div className="space-y-4">
               <Button
                 onClick={startRecording}
+                disabled={!cameraReady || !isModelReady}
                 className="w-full bg-white text-black hover:bg-gray-100 text-xl py-6 rounded-full font-bold transition-all"
                 size="lg"
               >
                 <Camera className="h-6 w-6 mr-2" />
-                Start Challenge
+                {isModelReady ? "Start Challenge" : "Loading AI..."}
               </Button>
-              <div className="text-center">
-                <button
-                  onClick={onCancel}
-                  className="text-white/70 text-sm font-medium hover:text-white transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
           )}
-
-          {/* Loading State */}
-          {!cameraReady && !cameraError && (
+          {(!cameraReady || !isModelReady) && !isRecording && (
             <div className="text-center">
               <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full inline-flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
-                <span className="text-white font-bold">Initializing camera...</span>
+                <span className="text-white font-bold">{getLoadingMessage()}</span>
               </div>
             </div>
           )}
