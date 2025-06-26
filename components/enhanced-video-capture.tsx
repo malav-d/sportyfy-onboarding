@@ -8,10 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { useRepDetector, type DetectorConfig } from "@/hooks/useRepDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
 
-// Check for debug mode
-const DEBUG_OVERLAY =
-  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true"
-
 interface ChallengeData {
   id: string
   title: string
@@ -105,7 +101,6 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     rules: challengeData.verification_rules,
     minValidReps: challengeData.requirements?.min_valid_reps ?? null,
     scoringKey: challengeData.scoring_method.key as "max_reps_in_time" | "first_n_valid_reps",
-    debug: DEBUG_OVERLAY,
   }
 
   const { initDetector, validReps, invalidReps, repState, destroyDetector, onEarlyComplete, debugData } =
@@ -302,7 +297,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       />
 
       {/* Live Analysis Debug Panel */}
-      {DEBUG_OVERLAY && isRecording && debugData && (
+      {isRecording && debugData && (
         <div className="absolute top-24 left-6 bg-black/50 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 font-mono shadow-lg">
           <h3 className="font-bold text-sm mb-2 border-b border-white/20 pb-1">Live Analysis</h3>
           <div>
@@ -375,18 +370,13 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               </Badge>
             )}
 
-            {/* Debug Mode Indicator */}
-            {DEBUG_OVERLAY && (
-              <Badge className="bg-orange-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Debug Mode</Badge>
-            )}
-
             {/* Motion Detection Indicator */}
             <Badge className="bg-blue-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Motion Detection</Badge>
           </div>
         </div>
 
         {/* Center Content */}
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {/* Countdown */}
           {countdown > 0 && (
             <motion.div

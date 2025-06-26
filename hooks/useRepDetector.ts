@@ -7,10 +7,16 @@ export interface DetectorConfig {
   rules: Record<string, any>
   minValidReps: number | null
   scoringKey: "max_reps_in_time" | "first_n_valid_reps"
-  debug?: boolean
 }
 
 type RepState = "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid"
+
+interface DebugData {
+  state: string
+  movement: number
+  isHigh: boolean
+  isIncreasing: boolean
+}
 
 // Much more sensitive tunables
 const MIN_REP_MS = 800 // Reduced from 1200ms - allow faster reps
@@ -30,6 +36,7 @@ export const useRepDetector = () => {
   const [validReps, setValidReps] = useState(0)
   const [invalidReps, setInvalidReps] = useState(0)
   const [repState, setRepState] = useState<RepState>("ready")
+  const [debugData, setDebugData] = useState<DebugData | null>(null)
 
   // Refs for detection
   const animationFrameRef = useRef<number | null>(null)
@@ -49,6 +56,138 @@ export const useRepDetector = () => {
   const motionHistoryRef = useRef<MotionData[]>([])
   const lastFrameDataRef = useRef<ImageData | null>(null)
   const movementSmoothingRef = useRef<number[]>([])
+
+  const analyzeRepPattern = useCallback((currentMotion: MotionData, timestamp: number) => {
+    if (!configRef.current || motionHistoryRef.current.length < 5) return
+
+    const config = configRef.current
+    const motionHistory = motionHistoryRef.current
+
+    // Calculate movement trends over different time windows
+    const recent = motionHistory.slice(-15) // Last 0.5 seconds
+    const short = motionHistory.slice(-30) // Last 1 second
+    const medium = motionHistory.slice(-60) // Last 2 seconds
+
+    const recentMovement = recent.reduce((sum, data) => sum + data.movement, 0) / recent.length
+    const shortMovement = short.reduce((sum, data) => sum + data.movement, 0) / short.length
+    const mediumMovement = medium.reduce((sum, data) => sum + data.movement, 0) / medium.length
+
+    // Detect movement patterns
+    const isMoving = recentMovement > MOVEMENT_THRESHOLD
+    const isHighMovement = recentMovement > HIGH_MOVEMENT_THRESHOLD
+    const isIncreasingMovement = recentMovement > shortMovement * 1.2
+    const isDecreasingMovement = recentMovement < shortMovement * 0.8
+
+    // Simple state machine based on movement patterns
+    const currentState = currentStateRef.current
+    const timeSinceLastRep = timestamp - lastRepTimeRef.current
+
+    // Update debug data for UI
+    setDebugData({
+      state: currentState,
+      movement: recentMovement,
+      isHigh: isHighMovement,
+      isIncreasing: isIncreasingMovement,
+    })
+
+    switch (currentState) {
+      case "ready":
+        if (isMoving && isIncreasingMovement) {
+          currentStateRef.current = "descending"
+          setRepState("descending")
+          upFrameCountRef.current = 0
+          downFrameCountRef.current = 1
+        }
+        break
+
+      case "descending":
+        if (isHighMovement) {
+          downFrameCountRef.current++
+          upFrameCountRef.current = 0
+        } else if (!isMoving) {
+          downFrameCountRef.current = Math.max(0, downFrameCountRef.current - 1)
+        }
+
+        if (downFrameCountRef.current >= FRAMES_FOR_STATE && isHighMovement) {
+          currentStateRef.current = "bottom"
+          setRepState("bottom")
+          bottomTimeRef.current = timestamp
+        }
+        break
+
+      case "bottom":
+        const timeAtBottom = timestamp - bottomTimeRef.current
+
+        if (isHighMovement && timeAtBottom > BOTTOM_DWELL_MS && isIncreasingMovement) {
+          upFrameCountRef.current++
+          downFrameCountRef.current = 0
+        }
+
+        if (upFrameCountRef.current >= FRAMES_FOR_STATE && timeAtBottom > BOTTOM_DWELL_MS) {
+          currentStateRef.current = "ascending"
+          setRepState("ascending")
+        }
+        break
+
+      case "ascending":
+        if (isMoving && !isDecreasingMovement) {
+          upFrameCountRef.current++
+        } else if (isDecreasingMovement || !isMoving) {
+          // Movement stopped or decreasing - check if rep is valid
+          if (timeSinceLastRep > MIN_REP_MS) {
+            // Valid rep!
+            setValidReps((prev) => {
+              const newCount = prev + 1
+
+              // Check for early completion
+              if (
+                config.scoringKey === "first_n_valid_reps" &&
+                config.minValidReps &&
+                newCount >= config.minValidReps &&
+                earlyCompleteCallbackRef.current
+              ) {
+                setTimeout(() => earlyCompleteCallbackRef.current?.(), 100)
+              }
+
+              return newCount
+            })
+
+            currentStateRef.current = "complete"
+            setRepState("complete")
+            lastRepTimeRef.current = timestamp
+
+            // Return to ready after brief celebration
+            setTimeout(() => {
+              currentStateRef.current = "ready"
+              setRepState("ready")
+              upFrameCountRef.current = 0
+              downFrameCountRef.current = 0
+            }, 500)
+          } else {
+            // Too fast - invalid rep
+            if (config.rules.track_invalid_reps) {
+              setInvalidReps((prev) => prev + 1)
+            }
+
+            currentStateRef.current = "invalid"
+            setRepState("invalid")
+
+            setTimeout(() => {
+              currentStateRef.current = "ready"
+              setRepState("ready")
+              upFrameCountRef.current = 0
+              downFrameCountRef.current = 0
+            }, 1000)
+          }
+        }
+        break
+
+      case "complete":
+      case "invalid":
+        // These states are handled by timeouts above
+        break
+    }
+  }, [])
 
   const analyzeMotion = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !configRef.current) return
@@ -144,162 +283,13 @@ export const useRepDetector = () => {
 
     // Continue analysis
     animationFrameRef.current = requestAnimationFrame(analyzeMotion)
-  }, [])
-
-  const analyzeRepPattern = useCallback((currentMotion: MotionData, timestamp: number) => {
-    if (!configRef.current || motionHistoryRef.current.length < 5) return
-
-    const config = configRef.current
-    const motionHistory = motionHistoryRef.current
-
-    // Calculate movement trends over different time windows
-    const recent = motionHistory.slice(-15) // Last 0.5 seconds
-    const short = motionHistory.slice(-30) // Last 1 second
-    const medium = motionHistory.slice(-60) // Last 2 seconds
-
-    const recentMovement = recent.reduce((sum, data) => sum + data.movement, 0) / recent.length
-    const shortMovement = short.reduce((sum, data) => sum + data.movement, 0) / short.length
-    const mediumMovement = medium.reduce((sum, data) => sum + data.movement, 0) / medium.length
-
-    // Detect movement patterns
-    const isMoving = recentMovement > MOVEMENT_THRESHOLD
-    const isHighMovement = recentMovement > HIGH_MOVEMENT_THRESHOLD
-    const isIncreasingMovement = recentMovement > shortMovement * 1.2
-    const isDecreasingMovement = recentMovement < shortMovement * 0.8
-
-    // Simple state machine based on movement patterns
-    const currentState = currentStateRef.current
-    const timeSinceLastRep = timestamp - lastRepTimeRef.current
-
-    console.log(
-      `State: ${currentState}, Movement: ${recentMovement.toFixed(2)}, High: ${isHighMovement}, Increasing: ${isIncreasingMovement}`,
-    )
-
-    switch (currentState) {
-      case "ready":
-        if (isMoving && isIncreasingMovement) {
-          console.log("Starting descent - movement detected")
-          currentStateRef.current = "descending"
-          setRepState("descending")
-          upFrameCountRef.current = 0
-          downFrameCountRef.current = 1
-        }
-        break
-
-      case "descending":
-        if (isHighMovement) {
-          downFrameCountRef.current++
-          upFrameCountRef.current = 0
-        } else if (!isMoving) {
-          downFrameCountRef.current = Math.max(0, downFrameCountRef.current - 1)
-        }
-
-        if (downFrameCountRef.current >= FRAMES_FOR_STATE && isHighMovement) {
-          console.log("Reached bottom position")
-          currentStateRef.current = "bottom"
-          setRepState("bottom")
-          bottomTimeRef.current = timestamp
-        }
-        break
-
-      case "bottom":
-        const timeAtBottom = timestamp - bottomTimeRef.current
-
-        if (isHighMovement && timeAtBottom > BOTTOM_DWELL_MS && isIncreasingMovement) {
-          upFrameCountRef.current++
-          downFrameCountRef.current = 0
-        }
-
-        if (upFrameCountRef.current >= FRAMES_FOR_STATE && timeAtBottom > BOTTOM_DWELL_MS) {
-          console.log("Starting ascent")
-          currentStateRef.current = "ascending"
-          setRepState("ascending")
-        }
-        break
-
-      case "ascending":
-        if (isMoving && !isDecreasingMovement) {
-          upFrameCountRef.current++
-        } else if (isDecreasingMovement || !isMoving) {
-          // Movement stopped or decreasing - check if rep is valid
-          if (timeSinceLastRep > MIN_REP_MS) {
-            // Valid rep!
-            console.log("Valid rep completed!")
-            setValidReps((prev) => {
-              const newCount = prev + 1
-
-              // Check for early completion
-              if (
-                config.scoringKey === "first_n_valid_reps" &&
-                config.minValidReps &&
-                newCount >= config.minValidReps &&
-                earlyCompleteCallbackRef.current
-              ) {
-                setTimeout(() => earlyCompleteCallbackRef.current?.(), 100)
-              }
-
-              return newCount
-            })
-
-            currentStateRef.current = "complete"
-            setRepState("complete")
-            lastRepTimeRef.current = timestamp
-
-            // Return to ready after brief celebration
-            setTimeout(() => {
-              currentStateRef.current = "ready"
-              setRepState("ready")
-              upFrameCountRef.current = 0
-              downFrameCountRef.current = 0
-            }, 500)
-          } else {
-            // Too fast - invalid rep
-            console.log("Invalid rep - too fast")
-            if (config.rules.track_invalid_reps) {
-              setInvalidReps((prev) => prev + 1)
-            }
-
-            currentStateRef.current = "invalid"
-            setRepState("invalid")
-
-            setTimeout(() => {
-              currentStateRef.current = "ready"
-              setRepState("ready")
-              upFrameCountRef.current = 0
-              downFrameCountRef.current = 0
-            }, 1000)
-          }
-        }
-        break
-
-      case "complete":
-      case "invalid":
-        // These states are handled by timeouts above
-        break
-    }
-
-    // Debug overlay
-    if (config.debug && typeof window !== "undefined" && (window as any).__debugOverlay) {
-      ;(window as any).__debugOverlay({
-        leftKneeAngle: 180 - recentMovement * 5, // Simulate knee angle based on movement
-        rightKneeAngle: 180 - recentMovement * 5,
-        hipMovement: isHighMovement ? -15 : 5, // Simulate hip movement
-        state: currentState.toUpperCase(),
-      })
-    }
-  }, [])
+  }, [analyzeRepPattern])
 
   const initDetector = useCallback(
     async (videoEl: HTMLVideoElement, cfg: DetectorConfig) => {
       try {
         configRef.current = cfg
         videoRef.current = videoEl
-
-        // Initialize debug overlay if enabled
-        if (cfg.debug) {
-          const { debugOverlay } = await import("@/utils/debugOverlay")
-          debugOverlay.init()
-        }
 
         // Create hidden canvas for motion analysis
         const canvas = document.createElement("canvas")
@@ -311,6 +301,7 @@ export const useRepDetector = () => {
         setValidReps(0)
         setInvalidReps(0)
         setRepState("ready")
+        setDebugData(null)
         currentStateRef.current = "ready"
         upFrameCountRef.current = 0
         downFrameCountRef.current = 0
@@ -322,8 +313,6 @@ export const useRepDetector = () => {
 
         // Start motion analysis
         analyzeMotion()
-
-        console.log("Sensitive motion detector initialized")
       } catch (error) {
         console.error("Failed to initialize pose detector:", error)
         throw error
@@ -341,12 +330,6 @@ export const useRepDetector = () => {
     if (canvasRef.current) {
       document.body.removeChild(canvasRef.current)
       canvasRef.current = null
-    }
-
-    if (configRef.current?.debug) {
-      import("@/utils/debugOverlay").then(({ debugOverlay }) => {
-        debugOverlay.destroy()
-      })
     }
 
     videoRef.current = null
@@ -370,6 +353,7 @@ export const useRepDetector = () => {
     repState,
     destroyDetector,
     onEarlyComplete,
+    debugData,
   }
 }
 
