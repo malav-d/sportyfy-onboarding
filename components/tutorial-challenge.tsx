@@ -1,9 +1,10 @@
 "use client"
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronRight, ChevronLeft, X, Check, Clock, Trophy, Target } from "lucide-react"
+import { ChevronRight, ChevronLeft, Check, Clock, Trophy, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiClient } from "@/lib/api"
+import { EnhancedVideoCapture } from "./enhanced-video-capture"
 
 interface TutorialChallengeProps {
   onComplete: () => void
@@ -86,10 +87,6 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
   const [challengeData, setChallengeData] = useState<ChallengeData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const [cameraLoading, setCameraLoading] = useState(false)
-  const [cameraError, setCameraError] = useState<string | null>(null)
   const [toastVisible, setToastVisible] = useState(true)
 
   // Calculate success threshold from requirements
@@ -155,120 +152,11 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
 
   // Cleanup camera stream on unmount
   useEffect(() => {
-    return () => {
-      cleanupCamera()
-    }
+    return () => {}
   }, [])
 
-  const cleanupCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        track.stop()
-      })
-      streamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-  }
-
   // Only initialize camera when recording step is active
-  useEffect(() => {
-    if (currentStep === "recording") {
-      initializeCamera()
-    } else {
-      // Cleanup camera when leaving recording step
-      cleanupCamera()
-    }
-  }, [currentStep])
-
-  const initializeCamera = async () => {
-    setCameraLoading(true)
-    setCameraError(null)
-
-    try {
-      // Check if camera is available
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Camera not supported on this device")
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-        },
-        audio: false,
-      })
-
-      // Store stream reference
-      streamRef.current = stream
-
-      // Set video source only if video element exists
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-
-        // Wait for video to be ready before playing
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
-            videoRef.current.play().catch((playError) => {
-              console.warn("Video autoplay failed:", playError)
-              // Autoplay might be blocked, but that's okay
-            })
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Camera access failed:", error)
-      setCameraError(error instanceof Error ? error.message : "Unable to access camera. Please check permissions.")
-    } finally {
-      setCameraLoading(false)
-    }
-  }
-
-  const startRecording = async () => {
-    setCountdown(3)
-    const countdownInterval = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval)
-          setIsRecording(true)
-          simulateExerciseDetection()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }
-
-  const simulateExerciseDetection = () => {
-    if (!challengeData) return
-
-    let count = 0
-    const targetReps = getSuccessThreshold()
-    const duration = challengeData.duration_limit * 1000 // Convert to milliseconds
-    const repInterval = duration / targetReps // Distribute reps evenly across duration
-
-    const exerciseInterval = setInterval(() => {
-      count++
-      setRepCount(count)
-
-      if (count >= targetReps) {
-        clearInterval(exerciseInterval)
-        setTimeout(() => {
-          setIsRecording(false)
-          completeRecording()
-        }, 1000)
-      }
-    }, repInterval)
-  }
-
-  const completeRecording = () => {
-    setCurrentStep("feedback")
-    setShowToast(true)
-    // Cleanup camera when recording is complete
-    cleanupCamera()
-  }
+  useEffect(() => {}, [currentStep])
 
   const handleContinue = async () => {
     try {
@@ -540,117 +428,20 @@ export function TutorialChallenge({ onComplete }: TutorialChallengeProps) {
   // Screen 3: Recording Screen
   const renderRecordingScreen = () => {
     return (
-      <div className="min-h-screen bg-black relative font-mono">
-        {/* Camera Feed or Error State */}
-        {cameraError ? (
-          <div className="absolute inset-0 bg-black flex flex-col items-center justify-center text-center px-6">
-            <div className="text-red-400 mb-4 text-lg">{cameraError}</div>
-            <Button onClick={initializeCamera} className="bg-white text-black hover:bg-gray-100 mb-4">
-              Try Again
-            </Button>
-            <button onClick={() => setCurrentStep("prep")} className="text-white/70 text-sm">
-              Go Back
-            </button>
-          </div>
-        ) : (
-          <>
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-              style={{ backgroundColor: "#000" }}
-            />
-            {cameraLoading && (
-              <div className="absolute inset-0 bg-black flex items-center justify-center">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                  <div className="text-white text-xl font-bold">Initializing camera...</div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Overlay Controls */}
-        {!cameraError && (
-          <div className="absolute inset-0 bg-black/20">
-            {/* Top Bar */}
-            <div className="absolute top-6 left-6 right-6 flex justify-between items-center">
-              <button
-                onClick={() => {
-                  setCurrentStep("prep")
-                  setPrepFrame(2)
-                }}
-                className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center"
-              >
-                <X className="h-5 w-5 text-white" />
-              </button>
-              <div className="bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full">
-                <span className="text-white font-bold">{challengeData.title}</span>
-              </div>
-            </div>
-
-            {/* Center Content */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {countdown > 0 && (
-                <motion.div
-                  key={countdown}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 1.5, opacity: 0 }}
-                  className="text-9xl font-bold text-white"
-                >
-                  {countdown}
-                </motion.div>
-              )}
-
-              {isRecording && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="bg-white/90 backdrop-blur-sm text-black px-8 py-6 rounded-2xl text-center"
-                >
-                  <div className="text-5xl font-bold">{repCount}</div>
-                  <div className="text-lg font-bold">
-                    / {getSuccessThreshold()} {challengeData.metrics_spec.primary.label}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-
-            {/* Bottom Controls */}
-            <div className="absolute bottom-8 left-6 right-6">
-              {!isRecording && countdown === 0 && !cameraLoading && (
-                <div className="space-y-4">
-                  <Button
-                    onClick={startRecording}
-                    className="w-full bg-white text-black hover:bg-gray-100 text-xl py-6 rounded-full font-bold"
-                    size="lg"
-                  >
-                    Start Recording
-                  </Button>
-                  <div className="text-center">
-                    <button onClick={() => setCurrentStep("prep")} className="text-white/70 text-sm font-medium">
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {isRecording && (
-                <div className="text-center">
-                  <div className="bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full inline-flex items-center space-x-2">
-                    <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
-                    <span className="text-white font-bold">Recording...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      <EnhancedVideoCapture
+        challengeData={challengeData}
+        onComplete={(result) => {
+          console.log("Recording completed with result:", result)
+          setCurrentStep("feedback")
+          setShowToast(true)
+          // Update rep count with actual detected reps
+          setRepCount(result.validReps)
+        }}
+        onCancel={() => {
+          setCurrentStep("prep")
+          setPrepFrame(2)
+        }}
+      />
     )
   }
 
