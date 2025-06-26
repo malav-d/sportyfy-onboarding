@@ -9,7 +9,7 @@ class ApiClient {
   private authToken: string | null = null
 
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || "https://api.sportyfy.live/api"
     this.authToken = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null
   }
 
@@ -39,7 +39,6 @@ class ApiClient {
     return headers
   }
 
-  // Update the private request method to use getHeaders()
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`
 
@@ -133,7 +132,7 @@ class ApiClient {
 
   // Tutorial Challenge endpoints
   async getTutorialChallenge() {
-    return this.request<TutorialChallenge>("/challenges/tutorial")
+    return this.request<TutorialChallengeResponse>("/challenges/tutorial")
   }
 
   async submitChallenge(challengeId: string, formData: FormData) {
@@ -153,6 +152,76 @@ class ApiClient {
 }
 
 export const apiClient = new ApiClient()
+
+export interface TutorialChallengeResponse {
+  data: {
+    id: string
+    type: string
+    attributes: {
+      title: string
+      description: string
+      duration_limit: number
+      points_reward: number
+      xp_reward: number
+      badge_reward: string
+      video_url: string
+      video_example_url: string
+      category: string
+      starts_at: string
+      ends_at: string | null
+      is_paid: boolean
+      entry_fee: string
+      is_tutorial: boolean
+      difficulty: {
+        key: string
+        label: string
+      }
+      challenge_type: {
+        key: string
+        label: string
+      }
+      scoring_method: {
+        key: string
+        label: string
+      }
+      requirements: {
+        camera_pose: {
+          key: string
+          label: string
+        }
+        min_valid_reps: number
+        duration_seconds: number
+        environment_tips: Array<{
+          label: string
+        }>
+      }
+      verification_rules: {
+        pose: string
+        down_knee_angle: {
+          max: number
+          tol: number
+        }
+        up_leg_straight: {
+          min: number
+          tol: number
+        }
+        track_invalid_reps: boolean
+      }
+      metrics_spec: {
+        primary: {
+          key: string
+          unit: string
+          label: string
+        }
+        secondary: {
+          key: string
+          unit: string
+          label: string
+        }
+      }
+    }
+  }
+}
 
 export interface TutorialChallenge {
   id: string
