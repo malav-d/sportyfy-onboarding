@@ -1,8 +1,16 @@
 "use client"
 
 import { useState, useRef, useCallback, useEffect } from "react"
-// We will dynamically import these to avoid server-side rendering issues
-import type { PoseLandmarker, DrawingUtils, Landmark } from "@mediapipe/tasks-vision"
+import { useScript } from "./useScript"
+
+// Define types for MediaPipe classes that will be on the window object
+declare global {
+  interface Window {
+    PoseLandmarker: any
+    FilesetResolver: any
+    DrawingUtils: any
+  }
+}
 
 // --- Configuration ---
 const UP_ANGLE_THRESHOLD = 160
@@ -18,16 +26,9 @@ export interface DebugData {
   rightKneeAngle: number
 }
 
-// Define a type for the modules we'll import dynamically
-interface MediaPipeModules {
-  PoseLandmarker: typeof import("@mediapipe/tasks-vision").PoseLandmarker
-  FilesetResolver: typeof import("@mediapipe/tasks-vision").FilesetResolver
-  DrawingUtils: typeof import("@mediapipe/tasks-vision").DrawingUtils
-}
-
 export const useMediaPipePoseDetector = () => {
-  const [poseLandmarker, setPoseLandmarker] = useState<PoseLandmarker | null>(null)
-  const [drawingUtils, setDrawingUtils] = useState<DrawingUtils | null>(null)
+  const scriptStatus = useScript("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.js")
+  const [poseLandmarker, setPoseLandmarker] = useState<any | null>(null)
   const [validReps, setValidReps] = useState(0)
   const [repState, setRepState] = useState<RepState>("ready")
   const [debugData, setDebugData] = useState<DebugData | null>(null)
@@ -38,20 +39,22 @@ export const useMediaPipePoseDetector = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const lastRepTimestamp = useRef(0)
   const animationFrameId = useRef<number | null>(null)
-  const modulesRef = useRef<MediaPipeModules | null>(null)
+  const drawingUtilsRef = useRef<any | null>(null)
 
-  // Load the MediaPipe PoseLandmarker model dynamically
   useEffect(() => {
+    if (scriptStatus === "error") {
+      setError("Failed to load the AI library. Please check your network connection.")
+    }
+    if (scriptStatus !== "ready" || poseLandmarker) {
+      return
+    }
+
     const createPoseLandmarker = async () => {
       try {
-        // Dynamically import the modules
-        const { PoseLandmarker, FilesetResolver, DrawingUtils } = await import("@mediapipe/tasks-vision")
-        modulesRef.current = { PoseLandmarker, FilesetResolver, DrawingUtils }
-
-        const vision = await FilesetResolver.forVisionTasks(
+        const vision = await window.FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm",
         )
-        const landmarker = await PoseLandmarker.createFromOptions(vision, {
+        const landmarker = await window.PoseLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath:
               "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
@@ -61,19 +64,18 @@ export const useMediaPipePoseDetector = () => {
           numPoses: 1,
         })
         setPoseLandmarker(landmarker)
-        setDrawingUtils(new DrawingUtils(null as any)) // Context is set per-frame
         setIsModelReady(true)
         console.log("Pose Landmarker model loaded.")
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Unknown error"
         console.error("Error loading Pose Landmarker model:", errorMessage, e)
-        setError(`Error loading AI model: ${errorMessage}`)
+        setError(`Error initializing AI model: ${errorMessage}`)
       }
     }
     createPoseLandmarker()
-  }, [])
+  }, [scriptStatus, poseLandmarker])
 
-  const calculateAngle = (p1: Landmark, p2: Landmark, p3: Landmark) => {
+  const calculateAngle = (p1: any, p2: any, p3: any) => {
     const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x)
     let angle = Math.abs((radians * 180.0) / Math.PI)
     if (angle > 180.0) angle = 360 - angle
@@ -81,7 +83,7 @@ export const useMediaPipePoseDetector = () => {
   }
 
   const predictWebcam = useCallback(() => {
-    if (!poseLandmarker || !drawingUtils || !videoRef.current || !canvasRef.current || !modulesRef.current) {
+    if (!poseLandmarker || !videoRef.current || !canvasRef.current) {
       return
     }
 
@@ -90,15 +92,17 @@ export const useMediaPipePoseDetector = () => {
     const canvasCtx = canvas.getContext("2d")
     if (!canvasCtx) return
 
+    if (!drawingUtilsRef.current) {
+      drawingUtilsRef.current = new window.DrawingUtils(canvasCtx)
+    }
+
     if (video.readyState < 2) {
-      // Ensure video is ready
       animationFrameId.current = requestAnimationFrame(predictWebcam)
       return
     }
 
     canvas.width = video.clientWidth
     canvas.height = video.clientHeight
-    ;(drawingUtils as any).canvasCtx = canvasCtx
 
     const startTimeMs = performance.now()
     const results = poseLandmarker.detectForVideo(video, startTimeMs)
@@ -108,12 +112,11 @@ export const useMediaPipePoseDetector = () => {
 
     if (results.landmarks && results.landmarks.length > 0) {
       const landmarks = results.landmarks[0]
-
-      drawingUtils.drawLandmarks(landmarks, {
-        radius: (data) => modulesRef.current!.DrawingUtils.lerp(data.from!.z, -0.15, 0.1, 5, 1),
-        color: "#5c3bfe",
+      drawingUtilsRef.current.drawLandmarks(landmarks, { color: "#5c3bfe", lineWidth: 2 })
+      drawingUtilsRef.current.drawConnectors(landmarks, window.PoseLandmarker.POSE_CONNECTIONS, {
+        color: "#FFFFFF",
+        lineWidth: 2,
       })
-      drawingUtils.drawConnectors(landmarks, modulesRef.current!.PoseLandmarker.POSE_CONNECTIONS, { color: "#FFFFFF" })
 
       const leftHip = landmarks[23]
       const leftKnee = landmarks[25]
@@ -152,7 +155,7 @@ export const useMediaPipePoseDetector = () => {
     canvasCtx.restore()
 
     animationFrameId.current = requestAnimationFrame(predictWebcam)
-  }, [poseLandmarker, drawingUtils, repState])
+  }, [poseLandmarker, repState])
 
   const startDetector = useCallback(
     (video: HTMLVideoElement, canvas: HTMLCanvasElement) => {
@@ -176,5 +179,5 @@ export const useMediaPipePoseDetector = () => {
     }
   }, [])
 
-  return { startDetector, stopDetector, validReps, repState, debugData, isModelReady, error }
+  return { startDetector, stopDetector, validReps, debugData, isModelReady, error }
 }
