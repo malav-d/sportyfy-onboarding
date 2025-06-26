@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
-import { X, Target, Camera } from "lucide-react"
+import { X, Target, Camera, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useMediaPipePoseDetector } from "@/hooks/useMediaPipePoseDetector"
@@ -36,7 +36,14 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  const { startDetector, stopDetector, validReps, repState, debugData, isModelReady } = useMediaPipePoseDetector()
+  const {
+    startDetector,
+    stopDetector,
+    validReps,
+    debugData,
+    isModelReady,
+    error: modelError,
+  } = useMediaPipePoseDetector()
 
   const stopRecording = useCallback(() => {
     setIsRecording(false)
@@ -68,7 +75,10 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        videoRef.current.onloadedmetadata = () => setCameraReady(true)
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(console.warn)
+          setCameraReady(true)
+        }
       }
     } catch (err) {
       setCameraError("Could not access camera. Please check permissions.")
@@ -92,9 +102,16 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }, 1000)
   }
 
+  const getLoadingMessage = () => {
+    if (modelError) return "Error loading AI"
+    if (!cameraReady) return "Initializing camera..."
+    if (!isModelReady) return "Loading AI model..."
+    return "Ready"
+  }
+
   return (
     <div className="min-h-screen bg-black relative font-mono">
-      <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
       <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
 
       {isRecording && debugData && (
@@ -129,7 +146,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
           </div>
         </div>
 
-        <div className="flex-grow flex items-center justify-center">
+        <div className="flex-grow flex items-center justify-center pointer-events-none">
           {countdown > 0 && (
             <motion.div
               key={countdown}
@@ -144,14 +161,22 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
 
         <div className="flex justify-center">
           {!isRecording && countdown === 0 && (
-            <Button
-              onClick={startRecordingFlow}
-              disabled={!cameraReady || !isModelReady}
-              className="w-full max-w-xs bg-white text-black text-xl py-6 rounded-full font-bold"
-            >
-              <Camera className="h-6 w-6 mr-2" />
-              {isModelReady ? "Start" : "Loading AI..."}
-            </Button>
+            <div className="w-full max-w-xs text-center">
+              <Button
+                onClick={startRecordingFlow}
+                disabled={!cameraReady || !isModelReady || !!modelError || !!cameraError}
+                className="w-full bg-white text-black text-xl py-6 rounded-full font-bold disabled:bg-gray-500"
+              >
+                <Camera className="h-6 w-6 mr-2" />
+                {isModelReady ? "Start" : getLoadingMessage()}
+              </Button>
+              {(modelError || cameraError) && (
+                <p className="text-red-400 text-xs mt-2 flex items-center justify-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  {modelError || cameraError}
+                </p>
+              )}
+            </div>
           )}
         </div>
       </div>
