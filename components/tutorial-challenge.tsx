@@ -7,24 +7,16 @@ import { EnhancedVideoCapture } from "./enhanced-video-capture"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CheckCircle, XCircle } from "lucide-react"
 
-// Using a static mock for the tutorial to ensure consistency and avoid API errors.
 const tutorialChallenge = {
   title: "First Squat Challenge",
-  duration_limit: 30,
-  scoring_method: { key: "first_n_valid_reps" as const },
+  duration_limit: 60,
   requirements: {
     min_valid_reps: 3,
-    track_invalid_reps: true,
-  },
-  metrics_spec: {
-    primary: { label: "Valid Squats" },
   },
 }
 
 interface RecordingResult {
   validReps: number
-  invalidReps: number
-  elapsed: number
 }
 
 export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
@@ -33,7 +25,7 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
 
   const handleChallengeComplete = (res: RecordingResult) => {
     setResult(res)
-    if (res.validReps >= (tutorialChallenge.requirements.min_valid_reps || 3)) {
+    if (res.validReps >= tutorialChallenge.requirements.min_valid_reps) {
       setFlowState("complete")
     } else {
       setFlowState("failed")
@@ -43,10 +35,6 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
   const handleTryAgain = () => {
     setResult(null)
     setFlowState("recording")
-  }
-
-  const handleContinue = () => {
-    onComplete()
   }
 
   return (
@@ -62,13 +50,11 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p>
-                    You need to complete{" "}
-                    <span className="font-bold text-white">{tutorialChallenge.requirements.min_valid_reps}</span> squats
-                    to pass.
+                    Complete{" "}
+                    <span className="font-bold text-white">{tutorialChallenge.requirements.min_valid_reps}</span>{" "}
+                    squats.
                   </p>
-                  <p className="text-sm text-gray-400">
-                    Make sure your whole body is visible and you have good lighting.
-                  </p>
+                  <p className="text-sm text-gray-400">Ensure your whole body is visible and well-lit.</p>
                   <Button
                     onClick={() => setFlowState("recording")}
                     className="w-full bg-purple-600 hover:bg-purple-700"
@@ -84,7 +70,7 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
         {flowState === "recording" && (
           <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <EnhancedVideoCapture
-              challengeData={tutorialChallenge as any} // Cast to match expected complex type
+              challengeData={tutorialChallenge}
               onComplete={handleChallengeComplete}
               onCancel={() => setFlowState("prep")}
             />
@@ -98,13 +84,12 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
                 <CardHeader className="text-center">
                   <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
                   <CardTitle className="text-3xl font-bold mt-4">Challenge Complete!</CardTitle>
-                  <CardDescription className="text-gray-400">Great job! You've mastered the squat.</CardDescription>
                 </CardHeader>
                 <CardContent className="text-center space-y-4">
                   <div className="text-lg">
                     You completed <span className="font-bold text-purple-400">{result?.validReps}</span> valid squats.
                   </div>
-                  <Button onClick={handleContinue} className="w-full bg-purple-600 hover:bg-purple-700">
+                  <Button onClick={onComplete} className="w-full bg-purple-600 hover:bg-purple-700">
                     Continue to Dashboard
                   </Button>
                 </CardContent>
@@ -120,24 +105,23 @@ export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
                 <CardHeader className="text-center">
                   <XCircle className="mx-auto h-16 w-16 text-red-500" />
                   <CardTitle className="text-3xl font-bold mt-4">Challenge Failed</CardTitle>
-                  <CardDescription className="text-gray-400">Don't give up! Every attempt is progress.</CardDescription>
                 </CardHeader>
                 <CardContent className="text-center space-y-4">
                   <div className="text-lg">
                     You completed <span className="font-bold text-red-400">{result?.validReps}</span> out of{" "}
                     <span className="font-bold text-gray-300">{tutorialChallenge.requirements.min_valid_reps}</span>{" "}
-                    required squats.
+                    required.
                   </div>
                   <div className="flex gap-4">
                     <Button
                       onClick={handleTryAgain}
                       variant="outline"
-                      className="w-full text-white border-gray-600 hover:bg-gray-700 hover:text-white"
+                      className="w-full text-white border-gray-600 hover:bg-gray-700"
                     >
                       <RotateCcw className="mr-2 h-4 w-4" />
                       Try Again
                     </Button>
-                    <Button onClick={handleContinue} className="w-full bg-purple-600 hover:bg-purple-700">
+                    <Button onClick={onComplete} className="w-full bg-purple-600 hover:bg-purple-700">
                       Continue
                     </Button>
                   </div>
