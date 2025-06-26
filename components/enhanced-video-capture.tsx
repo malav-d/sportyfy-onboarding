@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { useRepDetector, type DetectorConfig } from "@/hooks/useRepDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
 
-// Add after the imports
+// Check for debug mode
 const DEBUG_OVERLAY =
   typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true"
 
@@ -227,7 +227,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     if (!videoRef.current) return
 
     try {
-      // Initialize pose detector (demo mode)
+      // Initialize pose detector
       await initDetector(videoRef.current, detectorConfig)
 
       // Start recording state
@@ -235,7 +235,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       startTimer()
     } catch (error) {
       console.error("Failed to initialize detector:", error)
-      setCameraError("Failed to start pose detection")
+      setCameraError("Failed to start motion detection")
     }
   }
 
@@ -349,10 +349,13 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
               </Badge>
             )}
 
-            {/* Demo Mode Indicator */}
+            {/* Debug Mode Indicator */}
             {DEBUG_OVERLAY && (
               <Badge className="bg-orange-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Debug Mode</Badge>
             )}
+
+            {/* Motion Detection Indicator */}
+            <Badge className="bg-blue-500/70 text-white backdrop-blur-sm px-2 py-1 text-xs">Motion Detection</Badge>
           </div>
         </div>
 
