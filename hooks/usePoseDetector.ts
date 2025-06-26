@@ -4,234 +4,139 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import * as poseDetection from "@tensorflow-models/pose-detection"
 import * as tf from "@tensorflow/tfjs-core"
 import "@tensorflow/tfjs-backend-webgl"
-import { angleBetween, calculateHipMovement, getKeypoint } from "@/utils/poseMath"
+import { calculateAngle } from "@/utils/poseMath"
 
-// Configuration for the rep detection logic
-const MIN_REP_MS = 800 // A rep must take at least 800ms
-const BOTTOM_DWELL_MS = 100 // Must be in the 'bottom' position for at least 100ms
-const UP_ANGLE_THRESHOLD = 160 // Angle for standing straight
-const DOWN_ANGLE_THRESHOLD = 100 // Angle for being in a squat
-const HIP_MOVEMENT_THRESHOLD = 0.005 // Min normalized hip movement to detect motion
+// --- Configuration ---
+const SQUAT_UP_THRESHOLD = 160 // Angle for standing position
+const SQUAT_DOWN_THRESHOLD = 90 // Angle for squat depth
+const CONFIDENCE_THRESHOLD = 0.5
 
-export interface DetectorConfig {
-  minValidReps: number | null
-  scoringKey: "max_reps_in_time" | "first_n_valid_reps"
-}
-
+type RepState = "up" | "down"
 export interface DebugData {
+  state: RepState
   leftKneeAngle: number
   rightKneeAngle: number
-  hipVerticalPosition: number
-  hipMovement: number
-  state: RepState
-  keypoints: poseDetection.Keypoint[]
+  leftHipAngle: number
+  rightHipAngle: number
 }
 
-type RepState = "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid"
-
 export const usePoseDetector = () => {
+  const [detector, setDetector] = useState<poseDetection.PoseDetector | null>(null)
+  const [isModelReady, setIsModelReady] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   const [validReps, setValidReps] = useState(0)
-  const [invalidReps, setInvalidReps] = useState(0)
-  const [repState, setRepState] = useState<RepState>("ready")
+  const [repState, setRepState] = useState<RepState>("up")
   const [debugData, setDebugData] = useState<DebugData | null>(null)
-  const [model, setModel] = useState<poseDetection.PoseDetector | null>(null)
 
-  const animationFrameRef = useRef<number | null>(null)
-  const configRef = useRef<DetectorConfig | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
-  const earlyCompleteCallbackRef = useRef<(() => void) | null>(null)
+  const animationFrameId = useRef<number | null>(null)
 
-  // State machine refs
-  const currentStateRef = useRef<RepState>("ready")
-  const previousHipRef = useRef<poseDetection.Keypoint | null>(null)
-  const bottomTimeRef = useRef(0)
-  const lastRepTimeRef = useRef(0)
-
-  // Initialize the TensorFlow.js model
-  const initModel = useCallback(async () => {
-    try {
-      await tf.setBackend("webgl")
-      await tf.ready()
-      const detectorConfig = {
-        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+  // Load the MoveNet model from TensorFlow.js
+  useEffect(() => {
+    const loadDetector = async () => {
+      try {
+        setError(null)
+        await tf.ready()
+        await tf.setBackend("webgl")
+        const model = poseDetection.SupportedModels.MoveNet
+        const detectorConfig: poseDetection.MoveNetModelConfig = {
+          modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
+        }
+        const createdDetector = await poseDetection.createDetector(model, detectorConfig)
+        setDetector(createdDetector)
+        setIsModelReady(true)
+        console.log("MoveNet model loaded successfully.")
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : "Unknown error"
+        console.error("Failed to load pose detector:", e)
+        setError(`Failed to load AI model: ${errorMessage}`)
       }
-      const detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, detectorConfig)
-      setModel(detector)
-      console.log("MoveNet model loaded successfully.")
-    } catch (error) {
-      console.error("Failed to load MoveNet model:", error)
+    }
+    loadDetector()
+
+    return () => {
+      detector?.dispose()
     }
   }, [])
 
-  useEffect(() => {
-    initModel()
-    return () => {
-      model?.dispose()
-    }
-  }, [initModel, model])
+  const processPose = (pose: poseDetection.Pose) => {
+    const keypoints = pose.keypoints.reduce(
+      (acc, keypoint) => {
+        acc[keypoint.name!] = keypoint
+        return acc
+      },
+      {} as { [key: string]: poseDetection.Keypoint },
+    )
 
-  const detectPose = useCallback(async () => {
-    if (!model || !videoRef.current || !configRef.current) {
-      if (model && animationFrameRef.current === null) animationFrameRef.current = requestAnimationFrame(detectPose)
-      return
-    }
-
-    const video = videoRef.current
-    if (video.readyState < 2) {
-      animationFrameRef.current = requestAnimationFrame(detectPose)
-      return
-    }
-
-    const poses = await model.estimatePoses(video, {
-      flipHorizontal: false,
-    })
-
-    const pose = poses[0]
-    if (!pose || pose.score! < 0.4) {
-      setDebugData((prev) => (prev ? { ...prev, keypoints: [] } : null))
-      animationFrameRef.current = requestAnimationFrame(detectPose)
-      return
-    }
-
-    const leftHip = getKeypoint(pose.keypoints, "left_hip")
-    const rightHip = getKeypoint(pose.keypoints, "right_hip")
-    const leftKnee = getKeypoint(pose.keypoints, "left_knee")
-    const rightKnee = getKeypoint(pose.keypoints, "right_knee")
-    const leftAnkle = getKeypoint(pose.keypoints, "left_ankle")
-    const rightAnkle = getKeypoint(pose.keypoints, "right_ankle")
-
-    if (!leftHip || !rightHip || !leftKnee || !rightKnee || !leftAnkle || !rightAnkle) {
-      animationFrameRef.current = requestAnimationFrame(detectPose)
-      return
-    }
-
-    const leftKneeAngle = angleBetween(leftHip, leftKnee, leftAnkle)
-    const rightKneeAngle = angleBetween(rightHip, rightKnee, rightAnkle)
-    const avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2
-
-    const hipCenter = {
-      x: (leftHip.x + rightHip.x) / 2,
-      y: (leftHip.y + rightHip.y) / 2,
-      score: (leftHip.score! + rightHip.score!) / 2,
-      name: "hip_center",
-    }
-    const hipMovement = calculateHipMovement(hipCenter, previousHipRef.current)
-    previousHipRef.current = hipCenter
-
-    const timestamp = performance.now()
-    const timeSinceLastRep = timestamp - lastRepTimeRef.current
-    const currentState = currentStateRef.current
-
-    switch (currentState) {
-      case "ready":
-        if (avgKneeAngle < UP_ANGLE_THRESHOLD - 10 && hipMovement > HIP_MOVEMENT_THRESHOLD) {
-          currentStateRef.current = "descending"
-        }
-        break
-      case "descending":
-        if (avgKneeAngle < DOWN_ANGLE_THRESHOLD) {
-          currentStateRef.current = "bottom"
-          bottomTimeRef.current = timestamp
-        } else if (hipMovement < -HIP_MOVEMENT_THRESHOLD) {
-          currentStateRef.current = "ready"
-        }
-        break
-      case "bottom":
-        const timeAtBottom = timestamp - bottomTimeRef.current
-        if (timeAtBottom > BOTTOM_DWELL_MS) {
-          if (avgKneeAngle > DOWN_ANGLE_THRESHOLD + 10 && hipMovement < -HIP_MOVEMENT_THRESHOLD) {
-            currentStateRef.current = "ascending"
-          }
-        }
-        break
-      case "ascending":
-        if (avgKneeAngle > UP_ANGLE_THRESHOLD) {
-          if (timeSinceLastRep > MIN_REP_MS) {
-            setValidReps((prev) => {
-              const newCount = prev + 1
-              if (
-                configRef.current?.scoringKey === "first_n_valid_reps" &&
-                configRef.current?.minValidRps &&
-                newCount >= configRef.current.minValidReps
-              ) {
-                earlyCompleteCallbackRef.current?.()
-              }
-              return newCount
-            })
-            currentStateRef.current = "complete"
-            lastRepTimeRef.current = timestamp
-            setTimeout(() => {
-              currentStateRef.current = "ready"
-            }, 500)
-          } else {
-            setInvalidReps((prev) => prev + 1)
-            currentStateRef.current = "invalid"
-            setTimeout(() => {
-              currentStateRef.current = "ready"
-            }, 500)
-          }
-        }
-        break
-      case "complete":
-      case "invalid":
-        break
-    }
-
-    setRepState(currentStateRef.current)
-    setDebugData({
-      leftKneeAngle,
-      rightKneeAngle,
-      hipVerticalPosition: hipCenter.y,
-      hipMovement,
-      state: currentStateRef.current,
-      keypoints: pose.keypoints,
-    })
-
-    animationFrameRef.current = requestAnimationFrame(detectPose)
-  }, [model])
-
-  const initDetector = useCallback(
-    (videoEl: HTMLVideoElement, cfg: DetectorConfig) => {
-      if (!model) {
-        console.warn("Detector model not ready yet.")
+    const requiredKeypoints = [
+      "left_shoulder",
+      "right_shoulder",
+      "left_hip",
+      "right_hip",
+      "left_knee",
+      "right_knee",
+      "left_ankle",
+      "right_ankle",
+    ]
+    for (const kpName of requiredKeypoints) {
+      if (!keypoints[kpName] || (keypoints[kpName].score ?? 0) < CONFIDENCE_THRESHOLD) {
+        // Not all keypoints are visible, do not process
         return
       }
-      videoRef.current = videoEl
-      configRef.current = cfg
+    }
+
+    const leftKneeAngle = calculateAngle(keypoints.left_hip, keypoints.left_knee, keypoints.left_ankle)
+    const rightKneeAngle = calculateAngle(keypoints.right_hip, keypoints.right_knee, keypoints.right_ankle)
+    const leftHipAngle = calculateAngle(keypoints.left_shoulder, keypoints.left_hip, keypoints.left_knee)
+    const rightHipAngle = calculateAngle(keypoints.right_shoulder, keypoints.right_hip, keypoints.right_knee)
+
+    setDebugData({ state: repState, leftKneeAngle, rightKneeAngle, leftHipAngle, rightHipAngle })
+
+    const avgKneeAngle = (leftKneeAngle + rightKneeAngle) / 2
+
+    // State machine for rep counting
+    if (repState === "up" && avgKneeAngle < SQUAT_DOWN_THRESHOLD) {
+      setRepState("down")
+    } else if (repState === "down" && avgKneeAngle > SQUAT_UP_THRESHOLD) {
+      setValidReps((prev) => prev + 1)
+      setRepState("up")
+    }
+  }
+
+  const detectPoses = useCallback(async () => {
+    if (detector && videoRef.current && videoRef.current.readyState >= 2) {
+      try {
+        const poses = await detector.estimatePoses(videoRef.current)
+        if (poses && poses.length > 0) {
+          processPose(poses[0])
+        }
+      } catch (e) {
+        console.error("Error during pose estimation:", e)
+      }
+    }
+    animationFrameId.current = requestAnimationFrame(detectPoses)
+  }, [detector])
+
+  const startDetector = useCallback(
+    (video: HTMLVideoElement) => {
+      videoRef.current = video
       setValidReps(0)
-      setInvalidReps(0)
-      setRepState("ready")
-      currentStateRef.current = "ready"
-      previousHipRef.current = null
-      lastRepTimeRef.current = performance.now()
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = requestAnimationFrame(detectPose)
+      setRepState("up")
+      if (animationFrameId.current) {
+        cancelAnimationFrame(animationFrameId.current)
+      }
+      animationFrameId.current = requestAnimationFrame(detectPoses)
     },
-    [model, detectPose],
+    [detectPoses],
   )
 
-  const destroyDetector = useCallback(() => {
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = null
+  const stopDetector = useCallback(() => {
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current)
+      animationFrameId.current = null
     }
   }, [])
 
-  const onEarlyComplete = useCallback((callback: () => void) => {
-    earlyCompleteCallbackRef.current = callback
-    return () => {
-      earlyCompleteCallbackRef.current = null
-    }
-  }, [])
-
-  return {
-    initDetector,
-    destroyDetector,
-    onEarlyComplete,
-    validReps,
-    invalidReps,
-    repState,
-    debugData,
-    isModelReady: !!model,
-  }
+  return { startDetector, stopDetector, validReps, debugData, isModelReady, error }
 }

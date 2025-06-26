@@ -2,10 +2,10 @@
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { motion } from "framer-motion"
-import { X, Target, Camera, AlertTriangle, Download } from "lucide-react"
+import { X, Target, Camera, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { useMediaPipePoseDetector } from "@/hooks/useMediaPipePoseDetector"
+import { usePoseDetector } from "@/hooks/usePoseDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
 
 interface ChallengeData {
@@ -31,21 +31,12 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(0)
-  const [isLoadingModel, setIsLoadingModel] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
-  const {
-    loadModel,
-    startDetector,
-    stopDetector,
-    validReps,
-    debugData,
-    isModelReady,
-    error: modelError,
-  } = useMediaPipePoseDetector()
+  const { startDetector, stopDetector, validReps, debugData, isModelReady, error: modelError } = usePoseDetector()
 
   const stopRecording = useCallback(() => {
     setIsRecording(false)
@@ -69,6 +60,17 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }
   }, [stopDetector])
 
+  useEffect(() => {
+    if (!isRecording || !debugData || !canvasRef.current || !videoRef.current) {
+      const canvas = canvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext("2d")
+        ctx?.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
+  }, [debugData, isRecording])
+
   const initializeCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -87,21 +89,15 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }
   }
 
-  const handleLoadModel = async () => {
-    setIsLoadingModel(true)
-    await loadModel()
-    setIsLoadingModel(false)
-  }
-
   const startRecordingFlow = () => {
-    if (!cameraReady || !videoRef.current || !canvasRef.current || !isModelReady) return
+    if (!cameraReady || !videoRef.current || !isModelReady) return
     setCountdown(3)
     const countdownInterval = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(countdownInterval)
           setIsRecording(true)
-          startDetector(videoRef.current!, canvasRef.current!)
+          startDetector(videoRef.current!)
           startTimer()
           return 0
         }
@@ -110,54 +106,10 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     }, 1000)
   }
 
-  const renderMainButton = () => {
-    if (modelError || cameraError) {
-      return (
-        <div className="text-center">
-          <Button disabled className="w-full bg-red-500/50 text-white text-xl py-6 rounded-full font-bold">
-            <AlertTriangle className="h-6 w-6 mr-2" />
-            Error
-          </Button>
-          <p className="text-red-400 text-xs mt-2">{modelError || cameraError}</p>
-        </div>
-      )
-    }
-
-    if (!isModelReady) {
-      return (
-        <Button
-          onClick={handleLoadModel}
-          disabled={!cameraReady || isLoadingModel}
-          className="w-full bg-white text-black text-xl py-6 rounded-full font-bold"
-        >
-          {isLoadingModel ? (
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black" />
-          ) : (
-            <>
-              <Download className="h-6 w-6 mr-2" />
-              Load AI Model
-            </>
-          )}
-        </Button>
-      )
-    }
-
-    return (
-      <Button
-        onClick={startRecordingFlow}
-        disabled={!cameraReady}
-        className="w-full bg-white text-black text-xl py-6 rounded-full font-bold"
-      >
-        <Camera className="h-6 w-6 mr-2" />
-        Start Challenge
-      </Button>
-    )
-  }
-
   return (
     <div className="min-h-screen bg-black relative font-mono">
       <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
-      <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full" />
+      <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full pointer-events-none" />
 
       {isRecording && debugData && (
         <div className="absolute top-6 left-6 bg-black/50 backdrop-blur-sm text-white p-3 rounded-lg text-xs space-y-1 font-mono shadow-lg">
@@ -170,6 +122,12 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
           </div>
           <div>
             R.Knee: <span className="font-bold">{debugData.rightKneeAngle.toFixed(1)}°</span>
+          </div>
+          <div>
+            L.Hip: <span className="font-bold">{debugData.leftHipAngle.toFixed(1)}°</span>
+          </div>
+          <div>
+            R.Hip: <span className="font-bold">{debugData.rightHipAngle.toFixed(1)}°</span>
           </div>
         </div>
       )}
@@ -205,7 +163,30 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
         </div>
 
         <div className="flex justify-center">
-          {!isRecording && countdown === 0 && <div className="w-full max-w-xs">{renderMainButton()}</div>}
+          {!isRecording && countdown === 0 && (
+            <div className="w-full max-w-xs text-center">
+              <Button
+                onClick={startRecordingFlow}
+                disabled={!cameraReady || !isModelReady || !!modelError || !!cameraError}
+                className="w-full bg-white text-black text-xl py-6 rounded-full font-bold disabled:bg-gray-500"
+              >
+                {isModelReady ? (
+                  <>
+                    <Camera className="h-6 w-6 mr-2" />
+                    Start Challenge
+                  </>
+                ) : (
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black" />
+                )}
+              </Button>
+              {(modelError || cameraError) && (
+                <p className="text-red-400 text-xs mt-2 flex items-center justify-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  {modelError || cameraError}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

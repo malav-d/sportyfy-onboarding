@@ -1,17 +1,22 @@
 "use client"
-import { useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { RotateCcw } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { EnhancedVideoCapture } from "./enhanced-video-capture"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { CheckCircle, XCircle } from "lucide-react"
 
-const tutorialChallenge = {
-  title: "First Squat Challenge",
-  duration_limit: 60,
+import { useState } from "react"
+import { EnhancedVideoCapture } from "./enhanced-video-capture"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { CheckCircle, Repeat } from "lucide-react"
+
+// Mock challenge data for the tutorial
+const tutorialChallengeData = {
+  title: "First Squats Challenge",
+  duration_limit: 60, // 60 seconds
+  scoring_method: { key: "first_n_valid_reps" as const },
   requirements: {
-    min_valid_reps: 3,
+    min_valid_reps: 5,
+    track_invalid_reps: false,
+  },
+  metrics_spec: {
+    primary: { label: "Reps" },
   },
 }
 
@@ -19,118 +24,82 @@ interface RecordingResult {
   validReps: number
 }
 
-export function TutorialChallenge({ onComplete }: { onComplete: () => void }) {
-  const [flowState, setFlowState] = useState<"prep" | "recording" | "complete" | "failed">("prep")
-  const [result, setResult] = useState<RecordingResult | null>(null)
+export function TutorialChallenge() {
+  const [step, setStep] = useState<"prep" | "recording" | "results">("prep")
+  const [lastResult, setLastResult] = useState<RecordingResult | null>(null)
 
-  const handleChallengeComplete = (res: RecordingResult) => {
-    setResult(res)
-    if (res.validReps >= tutorialChallenge.requirements.min_valid_reps) {
-      setFlowState("complete")
-    } else {
-      setFlowState("failed")
-    }
+  const handleStart = () => {
+    setStep("recording")
   }
 
-  const handleTryAgain = () => {
-    setResult(null)
-    setFlowState("recording")
+  const handleComplete = (result: RecordingResult) => {
+    setLastResult(result)
+    setStep("results")
+  }
+
+  const handleCancel = () => {
+    setStep("prep")
+  }
+
+  const handleRetry = () => {
+    setLastResult(null)
+    setStep("prep")
+  }
+
+  if (step === "recording") {
+    return (
+      <EnhancedVideoCapture challengeData={tutorialChallengeData} onComplete={handleComplete} onCancel={handleCancel} />
+    )
+  }
+
+  if (step === "results" && lastResult) {
+    const success = lastResult.validReps >= tutorialChallengeData.requirements.min_valid_reps
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+        <Card className="w-full max-w-md bg-gray-800 border-purple-500">
+          <CardHeader className="text-center">
+            <div className="flex justify-center mb-4">
+              <CheckCircle className={`h-16 w-16 ${success ? "text-green-500" : "text-yellow-500"}`} />
+            </div>
+            <CardTitle className="text-2xl">{success ? "Challenge Complete!" : "Good Effort!"}</CardTitle>
+            <CardDescription>{success ? "You've mastered the basics." : "Let's give it another shot."}</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-6">
+            <div className="text-5xl font-bold">
+              {lastResult.validReps}{" "}
+              <span className="text-xl">/ {tutorialChallengeData.requirements.min_valid_reps} Reps</span>
+            </div>
+            <Button onClick={handleRetry} className="w-full bg-purple-600 hover:bg-purple-700">
+              <Repeat className="mr-2 h-4 w-4" />
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
-    <div className="font-mono antialiased">
-      <AnimatePresence mode="wait">
-        {flowState === "prep" && (
-          <motion.div key="prep" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4 text-center">
-              <Card className="w-full max-w-md bg-gray-900 border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-3xl font-bold text-purple-400">Tutorial Challenge</CardTitle>
-                  <CardDescription className="text-gray-300">{tutorialChallenge.title}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p>
-                    Complete{" "}
-                    <span className="font-bold text-white">{tutorialChallenge.requirements.min_valid_reps}</span>{" "}
-                    squats.
-                  </p>
-                  <p className="text-sm text-gray-400">Ensure your whole body is visible and well-lit.</p>
-                  <Button
-                    onClick={() => setFlowState("recording")}
-                    className="w-full bg-purple-600 hover:bg-purple-700"
-                  >
-                    Start Challenge
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        )}
-
-        {flowState === "recording" && (
-          <motion.div key="recording" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <EnhancedVideoCapture
-              challengeData={tutorialChallenge}
-              onComplete={handleChallengeComplete}
-              onCancel={() => setFlowState("prep")}
-            />
-          </motion.div>
-        )}
-
-        {flowState === "complete" && (
-          <motion.div key="complete" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-              <Card className="w-full max-w-md bg-gray-800 border-green-500">
-                <CardHeader className="text-center">
-                  <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
-                  <CardTitle className="text-3xl font-bold mt-4">Challenge Complete!</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center space-y-4">
-                  <div className="text-lg">
-                    You completed <span className="font-bold text-purple-400">{result?.validReps}</span> valid squats.
-                  </div>
-                  <Button onClick={onComplete} className="w-full bg-purple-600 hover:bg-purple-700">
-                    Continue to Dashboard
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        )}
-
-        {flowState === "failed" && (
-          <motion.div key="failed" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-              <Card className="w-full max-w-md bg-gray-800 border-red-500">
-                <CardHeader className="text-center">
-                  <XCircle className="mx-auto h-16 w-16 text-red-500" />
-                  <CardTitle className="text-3xl font-bold mt-4">Challenge Failed</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center space-y-4">
-                  <div className="text-lg">
-                    You completed <span className="font-bold text-red-400">{result?.validReps}</span> out of{" "}
-                    <span className="font-bold text-gray-300">{tutorialChallenge.requirements.min_valid_reps}</span>{" "}
-                    required.
-                  </div>
-                  <div className="flex gap-4">
-                    <Button
-                      onClick={handleTryAgain}
-                      variant="outline"
-                      className="w-full text-white border-gray-600 hover:bg-gray-700"
-                    >
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Try Again
-                    </Button>
-                    <Button onClick={onComplete} className="w-full bg-purple-600 hover:bg-purple-700">
-                      Continue
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white p-4">
+      <Card className="w-full max-w-md bg-gray-800 border-purple-500">
+        <CardHeader>
+          <CardTitle className="text-2xl">Tutorial: Your First Challenge</CardTitle>
+          <CardDescription>Let's calibrate the AI by performing 5 good squats.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h3 className="font-semibold">Instructions:</h3>
+            <ul className="list-disc list-inside text-sm text-gray-400">
+              <li>Find a well-lit area.</li>
+              <li>Ensure your full body is visible.</li>
+              <li>Perform 5 squats with good form.</li>
+            </ul>
+          </div>
+          <Button onClick={handleStart} className="w-full bg-purple-600 hover:bg-purple-700">
+            Begin Calibration
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
