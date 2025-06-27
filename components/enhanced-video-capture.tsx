@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useRepDetector, type DetectorConfig } from "@/hooks/useRepDetector"
 import { useCountdownTimer } from "@/hooks/useCountdownTimer"
-import type { Pose } from "@mediapipe/pose"
 
 // Check for debug mode
 const DEBUG_MODE = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("debug") === "true"
@@ -185,7 +184,7 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
     destroyDetector()
   }
 
-  const startPoseFeed = (video: HTMLVideoElement, pose: Pose) => {
+  const startPoseFeed = (video: HTMLVideoElement, pose: any) => {
     const processFrame = async () => {
       if (video.readyState >= 2) {
         await pose.send({ image: video })
@@ -252,6 +251,20 @@ export function EnhancedVideoCapture({ challengeData, onComplete, onCancel }: En
       stopRecording()
     }
   }, [isRecording, shouldStop])
+
+  if (cameraError) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-center px-6">
+        <div className="text-red-400 mb-4 text-lg">{cameraError}</div>
+        <Button onClick={initializeCamera} className="bg-white text-black hover:bg-gray-100 mb-4">
+          Try Again
+        </Button>
+        <button onClick={onCancel} className="text-white/70 text-sm">
+          Go Back
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-black relative font-mono">

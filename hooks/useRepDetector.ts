@@ -1,13 +1,12 @@
 "use client"
 
 import { useRef, useState, useCallback } from "react"
-import { Pose } from "@mediapipe/pose"
 import type { Results } from "@mediapipe/pose"
 import { smoothKeypoints, angleABC } from "@/utils/poseMath"
 
 export interface DetectorConfig {
-  pose: string // "squat", "push_up", etc.
-  rules: Record<string, any> // down_knee_angle, up_leg_straight…
+  pose: string
+  rules: Record<string, any>
   minValidReps: number | null
   scoringKey: "max_reps_in_time" | "first_n_valid_reps"
   debug?: boolean
@@ -17,10 +16,9 @@ export interface DetectorConfig {
 const MIN_REP_MS = 700
 const BOTTOM_DWELL_MS = 200
 const FRAMES_FOR_STATE = 3
-const HIP_MOVE_MIN_CM = 10 // Adjusted for more sensitivity
+const HIP_MOVE_MIN_CM = 10
 
 type RepState = "ready" | "descending" | "bottom" | "ascending" | "complete" | "invalid"
-
 export interface DebugData {
   kneeAngle: string
   hipDy: string
@@ -28,14 +26,14 @@ export interface DebugData {
 }
 
 export const useRepDetector = () => {
-  /* ---------- React state ---------- */
+  /* React state */
   const [validReps, setValidReps] = useState(0)
   const [invalidReps, setInvalidReps] = useState(0)
   const [repState, setRepState] = useState<RepState>("ready")
   const [debugData, setDebugData] = useState<DebugData | null>(null)
 
-  /* ---------- Refs ---------- */
-  const poseRef = useRef<Pose | null>(null)
+  /* Refs */
+  const poseRef = useRef<any>(null)
   const cfgRef = useRef<DetectorConfig | null>(null)
   const lastRepAt = useRef(0)
   const bottomAt = useRef(0)
@@ -44,29 +42,27 @@ export const useRepDetector = () => {
   const stateRef = useRef<RepState>("ready")
   const earlyCbRef = useRef<(() => void) | null>(null)
 
-  /* ---------- Core callback ---------- */
+  /* Core callback */
   const onResults = useCallback((res: Results) => {
     const cfg = cfgRef.current
     if (!cfg || !res.poseLandmarks) return
 
     const now = performance.now()
-    const pts = smoothKeypoints(res.poseLandmarks) as any // Cast to any to access custom props
-    const knee = angleABC(pts[24], pts[26], pts[28]) // Right hip, knee, ankle
-    const hipY = pts[24].y * 100 // cm-ish
+    const pts = smoothKeypoints(res.poseLandmarks) as any
+    const knee = angleABC(pts[24], pts[26], pts[28]) // R-hip, knee, ankle
+    const hipY = pts[24].y * 100
     const hipDy = hipY - (pts.__prevHipY ?? hipY)
-    pts.__prevHipY = hipY // Stash previous Y for delta calculation
+    pts.__prevHipY = hipY
 
-    /* hysteresis helpers */
     const aboveUp = knee > cfg.rules.up_leg_straight.min
     const belowDown = knee < cfg.rules.down_knee_angle.max
 
     upCount.current = aboveUp ? upCount.current + 1 : 0
     downCount.current = belowDown ? downCount.current + 1 : 0
 
-    /* ---------- FSM ---------- */
+    /* FSM */
     switch (stateRef.current) {
       case "ready":
-        // Moving down: hip Y increases, so hipDy is positive
         if (downCount.current >= FRAMES_FOR_STATE && hipDy > HIP_MOVE_MIN_CM) {
           stateRef.current = "descending"
           setRepState("descending")
@@ -82,7 +78,6 @@ export const useRepDetector = () => {
         break
 
       case "bottom":
-        // Moving up: hip Y decreases, so hipDy is negative
         if (
           now - bottomAt.current >= BOTTOM_DWELL_MS &&
           upCount.current >= FRAMES_FOR_STATE &&
@@ -97,7 +92,6 @@ export const useRepDetector = () => {
         if (aboveUp && now - lastRepAt.current > MIN_REP_MS) {
           setValidReps((v) => {
             const n = v + 1
-            // early-exit tutorial
             if (cfg.scoringKey === "first_n_valid_reps" && cfg.minValidReps && n >= cfg.minValidReps) {
               setTimeout(() => earlyCbRef.current?.(), 150)
             }
@@ -112,30 +106,29 @@ export const useRepDetector = () => {
           }, 400)
         }
         break
-
-      case "complete":
-      case "invalid":
-        // Handled by timeouts
-        break
     }
 
-    /* ---------- debug ---------- */
+    /* debug overlay */
     if (cfg.debug) {
-      setDebugData({
-        kneeAngle: knee.toFixed(1),
-        hipDy: hipDy.toFixed(1),
-        state: stateRef.current,
-      })
+      setDebugData({ kneeAngle: knee.toFixed(1), hipDy: hipDy.toFixed(1), state: stateRef.current })
     }
   }, [])
 
-  /* ---------- API exposed to component ---------- */
+  /* Safe loader for MediaPipe Pose */
+  const loadPoseClass = async () => {
+    const mod: any = await import("@mediapipe/pose")
+    const PoseClass = mod.Pose || mod.default
+    if (!PoseClass) throw new Error("MediaPipe Pose class not found in bundle")
+    return PoseClass
+  }
+
+  /* Public API */
   const initDetector = useCallback(
     async (video: HTMLVideoElement, cfg: DetectorConfig) => {
       cfgRef.current = cfg
+      const PoseClass = await loadPoseClass()
 
-      // Use the statically imported Pose constructor
-      const pose = new Pose({
+      const pose = new PoseClass({
         locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`,
       })
       pose.setOptions({
@@ -145,20 +138,19 @@ export const useRepDetector = () => {
         minTrackingConfidence: 0.5,
       })
       pose.onResults(onResults)
-      poseRef.current = pose
 
-      return pose
+      poseRef.current = pose
+      return pose // returned to EnhancedVideoCapture for frame loop
     },
     [onResults],
   )
 
   const destroyDetector = useCallback(() => {
-    poseRef.current?.close()
+    poseRef.current?.close?.()
     poseRef.current = null
     cfgRef.current = null
   }, [])
 
-  /* optional early-complete hook */
   const onEarlyComplete = useCallback((cb: () => void) => {
     earlyCbRef.current = cb
     return () => {
