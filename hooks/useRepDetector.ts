@@ -1,7 +1,8 @@
 "use client"
 
 import { useRef, useState, useCallback } from "react"
-import type { Pose, Results } from "@mediapipe/pose"
+import { Pose } from "@mediapipe/pose"
+import type { Results } from "@mediapipe/pose"
 import { smoothKeypoints, angleABC } from "@/utils/poseMath"
 
 export interface DetectorConfig {
@@ -53,6 +54,7 @@ export const useRepDetector = () => {
     const knee = angleABC(pts[24], pts[26], pts[28]) // Right hip, knee, ankle
     const hipY = pts[24].y * 100 // cm-ish
     const hipDy = hipY - (pts.__prevHipY ?? hipY)
+    pts.__prevHipY = hipY // Stash previous Y for delta calculation
 
     /* hysteresis helpers */
     const aboveUp = knee > cfg.rules.up_leg_straight.min
@@ -64,6 +66,7 @@ export const useRepDetector = () => {
     /* ---------- FSM ---------- */
     switch (stateRef.current) {
       case "ready":
+        // Moving down: hip Y increases, so hipDy is positive
         if (downCount.current >= FRAMES_FOR_STATE && hipDy > HIP_MOVE_MIN_CM) {
           stateRef.current = "descending"
           setRepState("descending")
@@ -79,6 +82,7 @@ export const useRepDetector = () => {
         break
 
       case "bottom":
+        // Moving up: hip Y decreases, so hipDy is negative
         if (
           now - bottomAt.current >= BOTTOM_DWELL_MS &&
           upCount.current >= FRAMES_FOR_STATE &&
@@ -130,9 +134,7 @@ export const useRepDetector = () => {
     async (video: HTMLVideoElement, cfg: DetectorConfig) => {
       cfgRef.current = cfg
 
-      // Dynamically import Pose to avoid SSR/bundling issues
-      const { Pose } = await import("@mediapipe/pose")
-
+      // Use the statically imported Pose constructor
       const pose = new Pose({
         locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`,
       })
@@ -145,7 +147,6 @@ export const useRepDetector = () => {
       pose.onResults(onResults)
       poseRef.current = pose
 
-      // This is a placeholder for the camera feed logic which will be in the component
       return pose
     },
     [onResults],
